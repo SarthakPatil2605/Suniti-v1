@@ -1,0 +1,146 @@
+// Suniti Construction CRM - Prisma Schema
+// Database: Supabase PostgreSQL (Integer autoincrement primary keys)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum EmployeeRole {
+  ADMIN
+  MANAGER
+  SALES_REP
+}
+
+enum CustomerType {
+  NEW
+  EXISTING
+}
+
+enum CustomerTier {
+  PREMIUM
+  LOYAL
+  INTERIOR_DESIGNER
+}
+
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
+}
+
+enum DealStatus {
+  PIPELINE
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum ProjectPhase {
+  TALKING
+  PROCESSING
+  DEAL_CLOSED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+/// Employees / Staff members of Suniti Construction
+model Employee {
+  employee_id   Int          @id @default(autoincrement()) @map("employee_id")
+  name          String       @map("name")
+  email         String       @unique @map("email")
+  password_hash String       @map("password_hash")
+  role          EmployeeRole @default(SALES_REP) @map("role")
+  created_at    DateTime     @default(now()) @map("created_at")
+
+  // Relationships
+  assigned_opportunities  Opportunity[] @relation("AssignedEmployee")
+  completed_opportunities Opportunity[] @relation("CompletedByEmployee")
+  authored_notes          LeadNote[]    @relation("AuthorEmployee")
+  completed_notes         LeadNote[]    @relation("CompletedNotes")
+
+  @@map("employees")
+}
+
+/// Customers / Clients interacting with Suniti Construction
+model Customer {
+  customer_id     Int           @id @default(autoincrement()) @map("customer_id")
+  name            String        @map("name")
+  customer_type   CustomerType  @default(NEW) @map("customer_type")
+  tier            CustomerTier? @map("tier")
+  phone           String?       @map("phone")
+  billing_address String?       @map("billing_address") @db.Text
+  is_blocklisted  Boolean       @default(false) @map("is_blocklisted")
+  created_at      DateTime      @default(now()) @map("created_at")
+
+  // Relationships
+  opportunities   Opportunity[]
+
+  @@index([customer_type])
+  @@index([tier])
+  @@index([phone])
+  @@map("customers")
+}
+
+/// Sales opportunities and project deals linked to customers and sales reps
+model Opportunity {
+  opportunity_id   Int             @id @default(autoincrement()) @map("opportunity_id")
+  customer_id      Int             @map("customer_id")
+  employee_id      Int             @map("employee_id")
+  project_title    String          @map("project_title")
+  location_name    String?         @map("location_name")
+  lead_temperature LeadTemperature @default(WARM) @map("lead_temperature")
+  deal_status      DealStatus      @default(PIPELINE) @map("deal_status")
+  project_phase    ProjectPhase    @default(TALKING) @map("project_phase")
+  is_completed     Boolean         @default(false) @map("is_completed")
+  completed_at     DateTime?       @map("completed_at")
+  completed_by     Int?            @map("completed_by")
+  created_at       DateTime        @default(now()) @map("created_at")
+
+  // Relationships
+  customer              Customer   @relation(fields: [customer_id], references: [customer_id], onDelete: Cascade)
+  assigned_employee     Employee   @relation("AssignedEmployee", fields: [employee_id], references: [employee_id], onDelete: Restrict)
+  completed_by_employee Employee?  @relation("CompletedByEmployee", fields: [completed_by], references: [employee_id], onDelete: SetNull)
+  lead_notes            LeadNote[]
+
+  @@index([customer_id])
+  @@index([employee_id])
+  @@index([deal_status])
+  @@index([project_phase])
+  @@index([lead_temperature])
+  @@map("opportunities")
+}
+
+/// Lead notes and follow-up tasks logged during the sales lifecycle
+model LeadNote {
+  note_id          Int       @id @default(autoincrement()) @map("note_id")
+  opportunity_id   Int       @map("opportunity_id")
+  employee_id      Int       @map("employee_id")
+  conclusion_notes String?   @map("conclusion_notes") @db.Text
+  next_call_date   DateTime? @map("next_call_date")
+  is_completed     Boolean   @default(false) @map("is_completed")
+  completed_at     DateTime? @map("completed_at")
+  completed_by     Int?      @map("completed_by")
+  created_at       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  opportunity           Opportunity @relation(fields: [opportunity_id], references: [opportunity_id], onDelete: Cascade)
+  author                Employee    @relation("AuthorEmployee", fields: [employee_id], references: [employee_id], onDelete: Restrict)
+  completed_by_employee Employee?   @relation("CompletedNotes", fields: [completed_by], references: [employee_id], onDelete: SetNull)
+
+  @@index([opportunity_id])
+  @@index([employee_id])
+  @@index([next_call_date])
+  @@index([is_completed])
+  @@map("lead_notes")
+}

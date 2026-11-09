@@ -1,0 +1,38 @@
+{
+  "name": "suniti-crm-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Suniti Construction CRM built with Node.js, Express, Prisma ORM, and Supabase PostgreSQL",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "node prisma/seed.js"
+  },
+  "keywords": [
+    "crm",
+    "construction",
+    "express",
+    "prisma",
+    "postgresql",
+    "supabase"
+  ],
+  "author": "Suniti Construction",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.4.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "prisma": "^6.4.0"
+  }
+}
