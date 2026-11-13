@@ -1,5 +1,8 @@
 import prisma from '../config/prisma.js';
 
+// Timezone offset for Asia/Kolkata (IST = UTC +05:30)
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
 /**
  * Helper: Parse integer ID safely
  */
@@ -16,8 +19,9 @@ function parseIntegerId(param, paramName = 'id') {
  * Route: GET /api/tasks/today
  *
  * Query options:
+ * - date: YYYY-MM-DD (calendar day in Asia/Kolkata, defaults to current IST date)
+ * - include_overdue: 'true' | 'false' (defaults to 'false')
  * - employee_id: Filter by specific employee (Managers/Admins only)
- * - include_overdue: 'true' (default: true) to include past due calls
  */
 export async function getTodayTaskQueue(req, res, next) {
   try {
@@ -26,36 +30,53 @@ export async function getTodayTaskQueue(req, res, next) {
       ? parseIntegerId(req.query.employee_id)
       : null;
 
-    // Determine target employee: Sales Reps can only view their own tasks
+    // Determine target employee: Sales Reps view only their own tasks
     let targetEmployeeId = req.user.employee_id;
     if (isManagerOrAdmin) {
-      targetEmployeeId = requestedEmployeeId || (req.query.all === 'true' ? null : req.user.employee_id);
+      targetEmployeeId =
+        requestedEmployeeId || (req.query.all === 'true' ? null : req.user.employee_id);
     }
 
-    // Time boundaries for today
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    // 1. Calculate Asia/Kolkata (IST) Day Boundaries in UTC
+    let dateStr = req.query.date;
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const nowUtc = new Date();
+      const nowIst = new Date(nowUtc.getTime() + IST_OFFSET_MS);
+      dateStr = nowIst.toISOString().split('T')[0];
+    }
 
-    const where = {
-      is_completed: false,
-    };
+    const [year, month, day] = dateStr.split('-').map(Number);
+    // 00:00:00.000 IST in UTC
+    const startOfDayUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - IST_OFFSET_MS);
+    // 23:59:59.999 IST in UTC
+    const endOfDayUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - IST_OFFSET_MS);
 
+    const isIncludeOverdue = req.query.include_overdue === 'true';
+
+    // 2. Build where filter
+    const where = {};
     if (targetEmployeeId) {
       where.employee_id = targetEmployeeId;
     }
 
-    const includeOverdue = req.query.include_overdue !== 'false';
-    if (includeOverdue) {
-      // Due up to the end of today (past overdue + today)
-      where.next_call_date = {
-        lte: endOfToday,
-      };
+    if (isIncludeOverdue) {
+      where.OR = [
+        // Pending tasks due on or before today
+        {
+          next_call_date: { lte: endOfDayUtc },
+          is_completed: false,
+        },
+        // Completed tasks due today
+        {
+          next_call_date: { gte: startOfDayUtc, lte: endOfDayUtc },
+          is_completed: true,
+        },
+      ];
     } else {
       // Strictly due today
       where.next_call_date = {
-        gte: startOfToday,
-        lte: endOfToday,
+        gte: startOfDayUtc,
+        lte: endOfDayUtc,
       };
     }
 
@@ -70,6 +91,7 @@ export async function getTodayTaskQueue(req, res, next) {
             deal_status: true,
             project_phase: true,
             lead_temperature: true,
+            is_completed: true,
             customer: {
               select: {
                 customer_id: true,
@@ -77,51 +99,123 @@ export async function getTodayTaskQueue(req, res, next) {
                 phone: true,
                 tier: true,
                 customer_type: true,
+                billing_address: true,
                 is_blocklisted: true,
               },
+            },
+            lead_notes: {
+              select: {
+                note_id: true,
+                conclusion_notes: true,
+                next_call_date: true,
+                is_completed: true,
+                created_at: true,
+                author: {
+                  select: { name: true },
+                },
+              },
+              orderBy: { created_at: 'desc' },
+              take: 5,
             },
           },
         },
         author: {
+          select: { employee_id: true, name: true, email: true, role: true },
+        },
+        completed_by_employee: {
           select: { employee_id: true, name: true, email: true },
         },
       },
-      orderBy: {
-        next_call_date: 'asc',
-      },
+      orderBy: [
+        { is_completed: 'asc' },
+        { next_call_date: 'asc' },
+      ],
     });
 
-    // Partition tasks into overdue and due today
-    let overdueCount = 0;
-    let dueTodayCount = 0;
+    let pendingCount = 0;
+    let completedCount = 0;
 
     const formattedTasks = tasks.map((task) => {
-      const callDate = task.next_call_date ? new Date(task.next_call_date) : null;
-      let urgency = 'DUE_TODAY';
-
-      if (callDate && callDate < startOfToday) {
-        urgency = 'OVERDUE';
-        overdueCount++;
+      if (task.is_completed) {
+        completedCount++;
       } else {
-        dueTodayCount++;
+        pendingCount++;
       }
 
-      const diffMs = callDate ? now.getTime() - callDate.getTime() : 0;
-      const daysOverdue = diffMs > 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) : 0;
+      const opp = task.opportunity;
+      const cust = opp?.customer;
+
+      // Extract prior history excluding current task
+      const priorHistory = (opp?.lead_notes || [])
+        .filter((h) => h.note_id !== task.note_id)
+        .map((h) => ({
+          note_id: h.note_id,
+          conclusion_notes: h.conclusion_notes,
+          next_call_date: h.next_call_date,
+          is_completed: h.is_completed,
+          created_at: h.created_at,
+          recorded_by: h.author?.name || 'System',
+        }));
 
       return {
-        ...task,
-        urgency,
-        days_overdue: daysOverdue,
+        // DailyTask flat schema expected by Flutter
+        task_id: task.note_id,
+        company_name: cust?.name || 'Unknown Company',
+        location: opp?.location_name || cust?.billing_address || null,
+        contact_details: cust
+          ? {
+              customer_id: cust.customer_id,
+              phone: cust.phone,
+              billing_address: cust.billing_address,
+              customer_type: cust.customer_type,
+              customer_tier: cust.tier,
+            }
+          : null,
+        opportunity: opp
+          ? {
+              opportunity_id: opp.opportunity_id,
+              project_title: opp.project_title,
+              location_name: opp.location_name,
+              lead_temperature: opp.lead_temperature,
+              deal_status: opp.deal_status,
+            }
+          : null,
+        scheduled_call_date: task.next_call_date,
+        task_instruction: task.conclusion_notes,
+        is_completed: task.is_completed,
+        completed_at: task.completed_at,
+        scheduled_by: task.author
+          ? {
+              employee_id: task.author.employee_id,
+              name: task.author.name,
+              email: task.author.email,
+            }
+          : null,
+        completed_by: task.completed_by_employee
+          ? {
+              employee_id: task.completed_by_employee.employee_id,
+              name: task.completed_by_employee.name,
+            }
+          : null,
+        prior_history: priorHistory,
+
+        // Backwards compatibility aliases
+        note_id: task.note_id,
+        conclusion_notes: task.conclusion_notes,
+        next_call_date: task.next_call_date,
+        author: task.author,
       };
     });
 
     return res.status(200).json({
+      success: true,
       status: 'success',
-      total_queue_count: formattedTasks.length,
-      overdue_count: overdueCount,
-      due_today_count: dueTodayCount,
+      query_date: dateStr,
+      total_tasks: formattedTasks.length,
+      pending_tasks: pendingCount,
+      completed_tasks: completedCount,
       tasks: formattedTasks,
+      data: formattedTasks,
     });
   } catch (error) {
     return next(error);
@@ -163,6 +257,9 @@ export async function logConclusionNoteAndScheduleCall(req, res, next) {
       where: { opportunity_id: opportunityId },
       include: {
         customer: true,
+        assigned_employee: {
+          select: { employee_id: true, name: true, email: true },
+        },
       },
     });
 
@@ -211,10 +308,17 @@ export async function logConclusionNoteAndScheduleCall(req, res, next) {
       });
 
       // Step B: Update lead temperature if provided
+      let updatedOpp = opportunity;
       if (lead_temperature && ['HOT', 'WARM', 'COLD'].includes(lead_temperature.toUpperCase())) {
-        await tx.opportunity.update({
+        updatedOpp = await tx.opportunity.update({
           where: { opportunity_id: opportunityId },
           data: { lead_temperature: lead_temperature.toUpperCase() },
+          include: {
+            customer: true,
+            assigned_employee: {
+              select: { employee_id: true, name: true, email: true },
+            },
+          },
         });
       }
 
@@ -233,20 +337,12 @@ export async function logConclusionNoteAndScheduleCall(req, res, next) {
           author: {
             select: { employee_id: true, name: true, email: true, role: true },
           },
-          opportunity: {
-            select: {
-              opportunity_id: true,
-              project_title: true,
-              deal_status: true,
-              project_phase: true,
-              lead_temperature: true,
-            },
-          },
         },
       });
 
       return {
         new_note: newNote,
+        opportunity: updatedOpp,
         prior_tasks_completed_count: priorUpdated.count,
       };
     });
@@ -254,6 +350,8 @@ export async function logConclusionNoteAndScheduleCall(req, res, next) {
     return res.status(201).json({
       status: 'success',
       message: `Conversation logged. ${result.prior_tasks_completed_count} prior task(s) completed. Next call scheduled for ${callDate.toISOString().split('T')[0]}.`,
+      note: result.new_note,
+      opportunity: result.opportunity,
       data: result,
     });
   } catch (error) {
@@ -267,12 +365,18 @@ export async function logConclusionNoteAndScheduleCall(req, res, next) {
  * Also: POST /api/tasks/:note_id/complete
  *
  * Records completed_by employee and completed_at timestamp.
+ * Optionally updates linked opportunity temperature/status and schedules subsequent note.
  */
 export async function completeTask(req, res, next) {
   try {
     const noteIdParam = req.params.note_id || req.params.id;
     const noteId = parseIntegerId(noteIdParam, 'note_id');
-    const { conclusion_notes } = req.body;
+    const {
+      conclusion_notes,
+      lead_temperature,
+      deal_status,
+      next_call_date,
+    } = req.body;
 
     if (!noteId) {
       return res.status(400).json({
@@ -283,6 +387,7 @@ export async function completeTask(req, res, next) {
 
     const task = await prisma.leadNote.findUnique({
       where: { note_id: noteId },
+      include: { opportunity: true },
     });
 
     if (!task) {
@@ -311,32 +416,69 @@ export async function completeTask(req, res, next) {
       updateData.conclusion_notes = conclusion_notes.trim();
     }
 
-    const updatedTask = await prisma.leadNote.update({
-      where: { note_id: noteId },
-      data: updateData,
-      include: {
-        author: {
-          select: { employee_id: true, name: true, email: true },
-        },
-        completed_by_employee: {
-          select: { employee_id: true, name: true, email: true },
-        },
-        opportunity: {
-          select: {
-            opportunity_id: true,
-            project_title: true,
-            customer: {
-              select: { customer_id: true, name: true },
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Mark task completed
+      const updated = await tx.leadNote.update({
+        where: { note_id: noteId },
+        data: updateData,
+        include: {
+          author: {
+            select: { employee_id: true, name: true, email: true },
+          },
+          completed_by_employee: {
+            select: { employee_id: true, name: true, email: true },
+          },
+          opportunity: {
+            select: {
+              opportunity_id: true,
+              project_title: true,
+              customer: {
+                select: { customer_id: true, name: true },
+              },
             },
           },
         },
-      },
+      });
+
+      // 2. Optional: update opportunity temperature or status
+      const oppUpdate = {};
+      if (lead_temperature && ['HOT', 'WARM', 'COLD'].includes(lead_temperature.toUpperCase())) {
+        oppUpdate.lead_temperature = lead_temperature.toUpperCase();
+      }
+      if (deal_status && ['PIPELINE', 'CLOSED_WON', 'CLOSED_LOST', 'OTHER'].includes(deal_status.toUpperCase())) {
+        oppUpdate.deal_status = deal_status.toUpperCase();
+      }
+
+      if (Object.keys(oppUpdate).length > 0) {
+        await tx.opportunity.update({
+          where: { opportunity_id: task.opportunity_id },
+          data: oppUpdate,
+        });
+      }
+
+      // 3. Optional: schedule subsequent follow-up note
+      let followUpNote = null;
+      if (next_call_date && !isNaN(new Date(next_call_date).getTime())) {
+        followUpNote = await tx.leadNote.create({
+          data: {
+            opportunity_id: task.opportunity_id,
+            employee_id: req.user.employee_id,
+            conclusion_notes: conclusion_notes || 'Follow-up scheduled from completed task.',
+            next_call_date: new Date(next_call_date),
+            is_completed: false,
+          },
+        });
+      }
+
+      return { updated, followUpNote };
     });
 
     return res.status(200).json({
       status: 'success',
       message: `Task #${noteId} marked as completed successfully.`,
-      task: updatedTask,
+      task: result.updated,
+      data: result.updated,
+      follow_up_note: result.followUpNote,
     });
   } catch (error) {
     return next(error);
@@ -412,6 +554,7 @@ export async function assignTask(req, res, next) {
       status: 'success',
       message: `Task #${noteId} successfully assigned to ${targetEmployee.name} (${targetEmployee.email}).`,
       task: updatedTask,
+      data: updatedTask,
     });
   } catch (error) {
     return next(error);
@@ -478,6 +621,7 @@ export async function getTasks(req, res, next) {
       status: 'success',
       count: tasks.length,
       tasks,
+      data: tasks,
     });
   } catch (error) {
     return next(error);
@@ -526,6 +670,7 @@ export async function getTaskById(req, res, next) {
     return res.status(200).json({
       status: 'success',
       task,
+      data: task,
     });
   } catch (error) {
     return next(error);

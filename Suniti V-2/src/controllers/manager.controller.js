@@ -60,6 +60,7 @@ export async function getEmployees(req, res, next) {
       status: 'success',
       count: employees.length,
       employees,
+      data: employees,
     });
   } catch (error) {
     return next(error);
@@ -124,6 +125,7 @@ export async function getEmployeeById(req, res, next) {
     return res.status(200).json({
       status: 'success',
       employee,
+      data: employee,
     });
   } catch (error) {
     return next(error);
@@ -195,6 +197,7 @@ export async function createEmployee(req, res, next) {
       status: 'success',
       message: 'Employee created successfully.',
       employee: newEmployee,
+      data: newEmployee,
     });
   } catch (error) {
     return next(error);
@@ -281,6 +284,7 @@ export async function updateEmployee(req, res, next) {
       status: 'success',
       message: `Employee #${employeeId} updated successfully.`,
       employee: updated,
+      data: updated,
     });
   } catch (error) {
     return next(error);
@@ -433,6 +437,7 @@ export async function getTeamWorkload(req, res, next) {
       timestamp: now.toISOString(),
       team_count: workloadReport.length,
       workload: workloadReport,
+      data: workloadReport,
     });
   } catch (error) {
     return next(error);
@@ -523,6 +528,7 @@ export async function getOverdueTaskAlerts(req, res, next) {
       total_overdue: alerts.length,
       critical_overdue_count: criticalCount,
       alerts,
+      data: alerts,
     });
   } catch (error) {
     return next(error);
@@ -659,6 +665,7 @@ export async function getLeadHistoryAudit(req, res, next) {
       },
       audit_timeline_count: timeline.length,
       audit_timeline: timeline,
+      data: timeline,
     });
   } catch (error) {
     return next(error);
@@ -817,6 +824,7 @@ export async function getAnalyticsReport(req, res, next) {
     return res.status(200).json({
       status: 'success',
       report: reportData,
+      data: reportData,
     });
   } catch (error) {
     return next(error);

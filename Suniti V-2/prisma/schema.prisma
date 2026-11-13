@@ -42,6 +42,7 @@ enum DealStatus {
   PIPELINE
   CLOSED_WON
   CLOSED_LOST
+  OTHER
 }
 
 enum ProjectPhase {
@@ -102,6 +103,7 @@ model Opportunity {
   lead_temperature LeadTemperature @default(WARM) @map("lead_temperature")
   deal_status      DealStatus      @default(PIPELINE) @map("deal_status")
   project_phase    ProjectPhase    @default(TALKING) @map("project_phase")
+  closure_reason   String?         @map("closure_reason") @db.Text
   is_completed     Boolean         @default(false) @map("is_completed")
   completed_at     DateTime?       @map("completed_at")
   completed_by     Int?            @map("completed_by")

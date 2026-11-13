@@ -154,12 +154,16 @@ export async function createCustomerWithOpportunity(req, res, next) {
           ...opportunity,
           lead_notes: [initialNote],
         },
+        lead_note: initialNote,
       };
     });
 
     return res.status(201).json({
       status: 'success',
       message: 'Customer and initial opportunity created successfully.',
+      customer: result.customer,
+      opportunity: result.opportunity,
+      lead_note: result.lead_note,
       data: result,
     });
   } catch (error) {
@@ -175,25 +179,32 @@ export async function createCustomerWithOpportunity(req, res, next) {
  * - PREMIUM
  * - LOYAL
  * - INTERIOR_DESIGNER
- * - UNASSIGNED
+ * Also returns counts and new customers count for dashboard tiles.
  */
 export async function getExistingCustomersByTier(req, res, next) {
   try {
-    const existingCustomers = await prisma.customer.findMany({
-      where: {
-        customer_type: 'EXISTING',
-      },
-      include: {
-        _count: {
-          select: {
-            opportunities: true,
+    const [existingCustomers, newCustomersCount] = await Promise.all([
+      prisma.customer.findMany({
+        where: {
+          customer_type: 'EXISTING',
+        },
+        include: {
+          _count: {
+            select: {
+              opportunities: true,
+            },
           },
         },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+        orderBy: {
+          name: 'asc',
+        },
+      }),
+      prisma.customer.count({
+        where: {
+          customer_type: 'NEW',
+        },
+      }),
+    ]);
 
     // Grouping
     const grouped = {
@@ -213,13 +224,17 @@ export async function getExistingCustomersByTier(req, res, next) {
 
     return res.status(200).json({
       status: 'success',
+      total: existingCustomers.length,
       total_existing_customers: existingCustomers.length,
+      new_customers_count: newCustomersCount,
       counts: {
         PREMIUM: grouped.PREMIUM.length,
         LOYAL: grouped.LOYAL.length,
         INTERIOR_DESIGNER: grouped.INTERIOR_DESIGNER.length,
+        NEW: newCustomersCount,
         UNASSIGNED: grouped.UNASSIGNED.length,
       },
+      data: grouped,
       by_tier: grouped,
     });
   } catch (error) {
@@ -278,14 +293,16 @@ export async function getCustomerOpportunitiesAndPlants(req, res, next) {
 
     return res.status(200).json({
       status: 'success',
-      customer_id: customer.customer_id,
+      company_id: customer.customer_id,
       company_name: customer.name,
+      customer_id: customer.customer_id,
       customer_type: customer.customer_type,
       tier: customer.tier,
       is_blocklisted: customer.is_blocklisted,
       plant_locations: plantLocations,
       total_opportunities: customer.opportunities.length,
       opportunities: customer.opportunities,
+      data: customer.opportunities,
     });
   } catch (error) {
     return next(error);
@@ -314,6 +331,7 @@ export async function getBlocklistedCustomers(req, res, next) {
       status: 'success',
       count: blocklisted.length,
       customers: blocklisted,
+      data: blocklisted,
     });
   } catch (error) {
     return next(error);
@@ -350,7 +368,7 @@ export async function toggleCustomerBlocklist(req, res, next) {
 
     // If explicit boolean provided in body, use it; otherwise toggle current value
     const targetStatus =
-      typeof req.body.is_blocklisted === 'boolean'
+      typeof req.body?.is_blocklisted === 'boolean'
         ? req.body.is_blocklisted
         : !customer.is_blocklisted;
 
@@ -365,6 +383,7 @@ export async function toggleCustomerBlocklist(req, res, next) {
         targetStatus ? 'BLOCKLISTED' : 'REMOVED from blocklist'
       }.`,
       customer: updated,
+      data: updated,
     });
   } catch (error) {
     return next(error);
@@ -419,6 +438,7 @@ export async function updateCustomerTier(req, res, next) {
       status: 'success',
       message: `Customer tier updated from "${previousTier || 'NONE'}" to "${assignedTier}".`,
       customer: updated,
+      data: updated,
     });
   } catch (error) {
     return next(error);
@@ -428,10 +448,17 @@ export async function updateCustomerTier(req, res, next) {
 /**
  * Controller: List all customers with optional filters
  * Route: GET /api/customers
+ *
+ * Query Params:
+ * - customer_type: 'NEW' | 'EXISTING'
+ * - tier: 'PREMIUM' | 'LOYAL' | 'INTERIOR_DESIGNER'
+ * - is_blocklisted: 'true' | 'false'
+ * - search: text matching name, phone, billing_address, or linked opportunity location_name
+ * - location: text matching billing_address or linked opportunity location_name
  */
 export async function getAllCustomers(req, res, next) {
   try {
-    const { search, tier, customer_type, is_blocklisted } = req.query;
+    const { search, tier, customer_type, is_blocklisted, location } = req.query;
 
     const where = {};
 
@@ -447,12 +474,42 @@ export async function getAllCustomers(req, res, next) {
       where.is_blocklisted = is_blocklisted === 'true';
     }
 
+    const conditions = [];
+
     if (search && search.trim()) {
-      where.OR = [
-        { name: { contains: search.trim(), mode: 'insensitive' } },
-        { phone: { contains: search.trim(), mode: 'insensitive' } },
-        { billing_address: { contains: search.trim(), mode: 'insensitive' } },
-      ];
+      conditions.push({
+        OR: [
+          { name: { contains: search.trim(), mode: 'insensitive' } },
+          { phone: { contains: search.trim(), mode: 'insensitive' } },
+          { billing_address: { contains: search.trim(), mode: 'insensitive' } },
+          {
+            opportunities: {
+              some: {
+                location_name: { contains: search.trim(), mode: 'insensitive' },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    if (location && location.trim()) {
+      conditions.push({
+        OR: [
+          { billing_address: { contains: location.trim(), mode: 'insensitive' } },
+          {
+            opportunities: {
+              some: {
+                location_name: { contains: location.trim(), mode: 'insensitive' },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    if (conditions.length > 0) {
+      where.AND = conditions;
     }
 
     const customers = await prisma.customer.findMany({
@@ -469,6 +526,7 @@ export async function getAllCustomers(req, res, next) {
       status: 'success',
       count: customers.length,
       customers,
+      data: customers,
     });
   } catch (error) {
     return next(error);
@@ -514,6 +572,7 @@ export async function getCustomerById(req, res, next) {
     return res.status(200).json({
       status: 'success',
       customer,
+      data: customer,
     });
   } catch (error) {
     return next(error);
