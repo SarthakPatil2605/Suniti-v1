@@ -298,7 +298,11 @@ export async function getCustomerOpportunitiesAndPlants(req, res, next) {
       customer_id: customer.customer_id,
       customer_type: customer.customer_type,
       tier: customer.tier,
+      phone: customer.phone,
+      billing_address: customer.billing_address,
       is_blocklisted: customer.is_blocklisted,
+      blocklist_reason: customer.blocklist_reason,
+      created_at: customer.created_at,
       plant_locations: plantLocations,
       total_opportunities: customer.opportunities.length,
       opportunities: customer.opportunities,
@@ -372,9 +376,20 @@ export async function toggleCustomerBlocklist(req, res, next) {
         ? req.body.is_blocklisted
         : !customer.is_blocklisted;
 
+    const blocklistReason = req.body?.blocklist_reason;
+
+    // When blacklisting, reason can be captured
+    const updateData = { is_blocklisted: targetStatus };
+    if (targetStatus && blocklistReason) {
+      updateData.blocklist_reason = blocklistReason.trim();
+    } else if (!targetStatus) {
+      // When unblacklisting, clear the blocklist reason
+      updateData.blocklist_reason = null;
+    }
+
     const updated = await prisma.customer.update({
       where: { customer_id: customerId },
-      data: { is_blocklisted: targetStatus },
+      data: updateData,
     });
 
     return res.status(200).json({

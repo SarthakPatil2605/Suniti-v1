@@ -411,17 +411,30 @@ async function run() {
     assert.equal(res.status, 403);
   });
 
-  await runTest('Permissions', 'MANAGER can toggle customer blocklist', async () => {
+  await runTest('Permissions', 'MANAGER can toggle customer blocklist with reason', async () => {
     const res = await api('/api/admin/customers/1/blocklist', {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${managerToken}` },
-      body: { is_blocklisted: true },
+      body: { is_blocklisted: true, blocklist_reason: 'Non-payment of past invoices' },
     });
     assert.equal(res.status, 200);
     assert.equal(res.data.customer.is_blocklisted, true);
+    assert.equal(res.data.customer.blocklist_reason, 'Non-payment of past invoices');
   });
 
-  await runTest('Permissions', 'ADMIN can unblock customer', async () => {
+  await runTest('Customer Details', 'GET /api/customers/:id/opportunities returns customer details, blocklist info, and opportunity history', async () => {
+    const res = await api('/api/customers/1/opportunities', {
+      headers: { Authorization: `Bearer ${managerToken}` },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.data.company_id, 1);
+    assert.equal(res.data.is_blocklisted, true);
+    assert.equal(res.data.blocklist_reason, 'Non-payment of past invoices');
+    assert.ok(Array.isArray(res.data.opportunities));
+    assert.ok(res.data.opportunities.length > 0);
+  });
+
+  await runTest('Permissions', 'ADMIN can unblock customer and clear blocklist reason', async () => {
     const res = await api('/api/admin/customers/1/blocklist', {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -429,6 +442,7 @@ async function run() {
     });
     assert.equal(res.status, 200);
     assert.equal(res.data.customer.is_blocklisted, false);
+    assert.equal(res.data.customer.blocklist_reason, null);
   });
 
   // -----------------------------------------------------------------

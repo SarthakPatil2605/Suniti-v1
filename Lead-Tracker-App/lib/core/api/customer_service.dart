@@ -25,11 +25,13 @@ class ExistingCustomersResult {
 class CustomerOpportunitiesResult {
   final int companyId;
   final String companyName;
+  final Customer? customer;
   final List<Opportunity> opportunities;
 
   const CustomerOpportunitiesResult({
     required this.companyId,
     required this.companyName,
+    this.customer,
     required this.opportunities,
   });
 }
@@ -141,6 +143,25 @@ class CustomerService {
       final companyId = data['company_id'] as int? ?? customerId;
       final companyName = data['company_name'] as String? ?? '';
 
+      Customer? customer;
+      if (data['customer_id'] != null) {
+        customer = Customer(
+          customerId: data['customer_id'] as int? ?? companyId,
+          name: companyName,
+          customerType: CustomerType.fromString(
+            data['customer_type'] as String?,
+          ),
+          tier: CustomerTier.fromString(data['tier'] as String?),
+          phone: data['phone'] as String?,
+          billingAddress: data['billing_address'] as String?,
+          isBlocklisted: data['is_blocklisted'] as bool? ?? false,
+          blocklistReason: data['blocklist_reason'] as String?,
+          createdAt: data['created_at'] != null
+              ? DateTime.tryParse(data['created_at'].toString())
+              : null,
+        );
+      }
+
       final rawOpps = data['opportunities'];
       final opportunities = <Opportunity>[];
       if (rawOpps is List) {
@@ -154,6 +175,7 @@ class CustomerService {
       return CustomerOpportunitiesResult(
         companyId: companyId,
         companyName: companyName,
+        customer: customer,
         opportunities: opportunities,
       );
     } on ApiException {
@@ -348,15 +370,19 @@ class CustomerService {
 
   /// PATCH /api/admin/customers/:id/blocklist
   /// or PATCH /api/customers/:id/blocklist
-  /// Toggles or sets is_blocklisted for a customer.
+  /// Toggles or sets is_blocklisted for a customer, with optional blocklist_reason.
   Future<Customer> toggleBlocklist(
     int customerId, {
     bool? isBlocklisted,
+    String? blocklistReason,
   }) async {
     try {
       final body = <String, dynamic>{};
       if (isBlocklisted != null) {
         body['is_blocklisted'] = isBlocklisted;
+      }
+      if (blocklistReason != null && blocklistReason.trim().isNotEmpty) {
+        body['blocklist_reason'] = blocklistReason.trim();
       }
 
       // Try /api/admin/customers/:id/blocklist

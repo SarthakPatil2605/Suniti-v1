@@ -82,6 +82,7 @@ model Customer {
   phone           String?       @map("phone")
   billing_address String?       @map("billing_address") @db.Text
   is_blocklisted  Boolean       @default(false) @map("is_blocklisted")
+  blocklist_reason String?      @map("blocklist_reason") @db.Text
   created_at      DateTime      @default(now()) @map("created_at")
 
   // Relationships

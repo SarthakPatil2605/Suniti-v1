@@ -8,6 +8,7 @@ import '../../core/constants/app_theme.dart';
 import '../../models/customer.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/customer_provider.dart';
+import '../customers/customer_detail_screen.dart';
 
 class BlacklistedCustomersScreen extends StatefulWidget {
   const BlacklistedCustomersScreen({super.key});
@@ -279,105 +280,180 @@ class _BlacklistedCustomersScreenState
               .join()
         : 'BL';
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadius.radiusLg,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.danger.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.danger.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  color: AppColors.danger,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CustomerDetailScreen(
+              customerId: customer.customerId,
+              initialCustomer: customer,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.radiusLg,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(
-                  customer.name,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.danger.withValues(alpha: 0.5),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'RESTRICTED ACCOUNT',
-                  style: TextStyle(
-                    color: AppColors.danger,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (isAdmin)
-            PopupMenuButton<String>(
-              color: AppColors.surfaceElevated,
-              icon: const Icon(
-                Icons.more_vert_rounded,
-                color: AppColors.textSecondary,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: AppRadius.radiusMd,
-                side: const BorderSide(color: AppColors.border),
-              ),
-              onSelected: (val) {
-                if (val == 'unblock') {
-                  _confirmUnblock(context, customer);
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'unblock',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.lock_open_rounded,
-                        color: AppColors.callGreen,
-                        size: 18,
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: AppColors.danger,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
-                      SizedBox(width: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'Unblock Customer',
-                        style: TextStyle(color: AppColors.textPrimary),
+                        customer.name,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        'RESTRICTED ACCOUNT',
+                        style: TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                if (isAdmin)
+                  PopupMenuButton<String>(
+                    color: AppColors.surfaceElevated,
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.radiusMd,
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    onSelected: (val) {
+                      if (val == 'unblock') {
+                        _confirmUnblock(context, customer);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'unblock',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_open_rounded,
+                              color: AppColors.callGreen,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Unblock Customer',
+                              style: TextStyle(color: AppColors.textPrimary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 18,
+                    color: AppColors.textMuted,
+                  ),
               ],
-            )
-          else
-            const Icon(
-              Icons.lock_outline_rounded,
-              size: 18,
-              color: AppColors.textMuted,
             ),
-        ],
+            if (customer.blocklistReason != null &&
+                customer.blocklistReason!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSurface,
+                  borderRadius: AppRadius.radiusMd,
+                  border: Border.all(
+                    color: AppColors.danger.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      color: AppColors.danger,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Reason: ${customer.blocklistReason!}',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (customer.phone != null && customer.phone!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.phone_rounded,
+                    size: 12,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    customer.phone!,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

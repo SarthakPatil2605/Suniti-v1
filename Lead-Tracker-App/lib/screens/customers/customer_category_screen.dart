@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_theme.dart';
 import '../../models/customer.dart';
 import '../../providers/customer_provider.dart';
+import 'customer_detail_screen.dart';
 
 class CustomerCategoryScreen extends StatefulWidget {
   final CustomerTier? tier;
@@ -666,90 +667,102 @@ class _CustomerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadius.radiusLg,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          // Avatar initials circle
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: tierColor.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: tierColor.withValues(alpha: 0.5),
-                width: 1.5,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                _initials,
-                style: TextStyle(
-                  color: tierColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CustomerDetailScreen(
+              customerId: customer.customerId,
+              initialCustomer: customer,
             ),
           ),
-          const SizedBox(width: 14),
-          // Name + date + tier badge
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  customer.name,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadius.radiusLg,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            // Avatar initials circle
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: tierColor.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: tierColor.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  _initials,
+                  style: TextStyle(
+                    color: tierColor,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    if (_joinedDate.isNotEmpty) ...[
-                      Text(
-                        _joinedDate,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Name + date + tier badge
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    customer.name,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      if (_joinedDate.isNotEmpty) ...[
+                        Text(
+                          _joinedDate,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 8),
+                      ],
+                      _TierBadge(label: _badgeLabel, color: tierColor),
                     ],
-                    _TierBadge(label: _badgeLabel, color: tierColor),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Call button
+            GestureDetector(
+              onTap: () => _callCustomer(context),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.callGreen,
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Call button
-          GestureDetector(
-            onTap: () => _callCustomer(context),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: AppColors.callGreen,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.phone_rounded,
-                color: Colors.white,
-                size: 20,
+                child: const Icon(
+                  Icons.phone_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

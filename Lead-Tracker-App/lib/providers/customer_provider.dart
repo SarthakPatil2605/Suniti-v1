@@ -76,17 +76,6 @@ class CustomerProvider extends ChangeNotifier {
       _groupedExistingCustomers = result.grouped;
       _tierCounts = result.counts;
       _existingTotal = result.total;
-
-      // Also refresh blocklisted list if any existing customer is marked is_blocklisted
-      final blocklistedFromExisting = <Customer>[];
-      for (final list in _groupedExistingCustomers.values) {
-        for (final c in list) {
-          if (c.isBlocklisted) {
-            blocklistedFromExisting.add(c);
-          }
-        }
-      }
-      _blocklistedCustomers = blocklistedFromExisting;
       _errorMessage = null;
     } on ForbiddenException {
       _errorMessage =
@@ -180,10 +169,13 @@ class CustomerProvider extends ChangeNotifier {
     try {
       await _service.toggleBlocklist(customerId, isBlocklisted: false);
       _blocklistedCustomers.removeWhere((c) => c.customerId == customerId);
+      // Refresh customer lists so customer reappears in categories
+      await loadExistingCustomers();
+      await loadNewCustomers();
+      await loadBlocklistedCustomers();
       notifyListeners();
     } on ForbiddenException {
-      _errorMessage =
-          'Permission denied: Admin authorization required to unblock.';
+      _errorMessage = 'Permission denied: Admin or Manager authorization required to unblock.';
       notifyListeners();
     } on ApiException catch (e) {
       _errorMessage = e.message;
@@ -191,6 +183,44 @@ class CustomerProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = 'Failed to unblock customer.';
       notifyListeners();
+    }
+  }
+
+  /// Blacklist a customer with an optional reason.
+  Future<bool> blockCustomer(int customerId, {String? reason}) async {
+    try {
+      final updated = await _service.toggleBlocklist(
+        customerId,
+        isBlocklisted: true,
+        blocklistReason: reason,
+      );
+      // Remove from existing/new lists
+      for (final tier in _groupedExistingCustomers.keys) {
+        _groupedExistingCustomers[tier]?.removeWhere(
+          (c) => c.customerId == customerId,
+        );
+      }
+      _newCustomers.removeWhere((c) => c.customerId == customerId);
+      _blocklistedCustomers.removeWhere((c) => c.customerId == customerId);
+      _blocklistedCustomers.insert(0, updated);
+
+      await loadExistingCustomers();
+      await loadNewCustomers();
+      await loadBlocklistedCustomers();
+      notifyListeners();
+      return true;
+    } on ForbiddenException {
+      _errorMessage = 'Permission denied: Admin or Manager authorization required to blacklist.';
+      notifyListeners();
+      return false;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to blacklist customer.';
+      notifyListeners();
+      return false;
     }
   }
 

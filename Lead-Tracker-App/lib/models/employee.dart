@@ -41,8 +41,8 @@ class Employee {
   bool get isManager => role == EmployeeRole.MANAGER;
   bool get isSalesRep => role == EmployeeRole.SALES_REP;
 
-  /// Only ADMIN has administrative/management privileges according to the backend schema and verifyAdmin middleware.
-  bool get canManage => isAdmin;
+  /// Both ADMIN and MANAGER have administrative/management privileges (such as customer blocklisting/unblocking).
+  bool get canManage => isAdmin || isManager;
 
   factory Employee.fromJson(Map<String, dynamic> json) {
     return Employee(

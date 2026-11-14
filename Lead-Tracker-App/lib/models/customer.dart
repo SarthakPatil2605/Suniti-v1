@@ -61,6 +61,7 @@ class Customer {
   final String? phone;
   final String? billingAddress;
   final bool isBlocklisted;
+  final String? blocklistReason;
   final DateTime? createdAt;
 
   const Customer({
@@ -71,6 +72,7 @@ class Customer {
     this.phone,
     this.billingAddress,
     this.isBlocklisted = false,
+    this.blocklistReason,
     this.createdAt,
   });
 
@@ -94,6 +96,7 @@ class Customer {
       phone: json['phone'] as String?,
       billingAddress: json['billing_address'] as String?,
       isBlocklisted: json['is_blocklisted'] as bool? ?? false,
+      blocklistReason: json['blocklist_reason'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
@@ -109,6 +112,7 @@ class Customer {
       if (phone != null) 'phone': phone,
       if (billingAddress != null) 'billing_address': billingAddress,
       'is_blocklisted': isBlocklisted,
+      if (blocklistReason != null) 'blocklist_reason': blocklistReason,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
     };
   }
@@ -121,6 +125,8 @@ class Customer {
     String? phone,
     String? billingAddress,
     bool? isBlocklisted,
+    String? blocklistReason,
+    bool clearBlocklistReason = false,
     DateTime? createdAt,
   }) {
     return Customer(
@@ -131,6 +137,9 @@ class Customer {
       phone: phone ?? this.phone,
       billingAddress: billingAddress ?? this.billingAddress,
       isBlocklisted: isBlocklisted ?? this.isBlocklisted,
+      blocklistReason: clearBlocklistReason
+          ? null
+          : (blocklistReason ?? this.blocklistReason),
       createdAt: createdAt ?? this.createdAt,
     );
   }

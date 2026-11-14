@@ -157,6 +157,52 @@ These findings are pending verification against the current backend code. Do not
 - **Next Milestone Recommendation:**
   - **Milestone 5 (End-to-End Live API Staging & User Acceptance Testing):** Connect Flutter client to live running PostgreSQL + Express backend instance, test authentication flow, live CRUD operations, and verify responsive layout on physical/virtual devices.
 
+### 2026-11-14: Milestone 5C - Customer Blacklisting & Complete Lead History
+- **Author:** Full-Stack Integration Agent
+- **Branch:** `feature/milestone-4b-full-integration`
+- **Scope & Objectives:**
+  - Implemented Customer Blacklisting and Unblacklisting workflows with persistent blacklist reasons and strict RBAC enforcement.
+  - Implemented Complete Customer Details & Lead History screen accessible by tapping any customer record in category lists or the blacklisted screen.
+  - **Backend & Database:**
+    - Added `blocklist_reason String? @map("blocklist_reason") @db.Text` to `Customer` model in `Suniti V-2/prisma/schema.prisma`.
+    - Generated and deployed migration `20261114104631_add_blocklist_reason`.
+    - Updated `Suniti V-2/src/controllers/customer.controller.js`:
+      - `toggleCustomerBlocklist`: persists `blocklist_reason` on blacklist, clears it to `null` on unblacklist. Enforced RBAC (`ADMIN` and `MANAGER` authorized, `SALES_REP` returns 403 Forbidden).
+      - `getCustomerOpportunitiesAndPlants`: enriched returned payload with customer `phone`, `billing_address`, `is_blocklisted`, `blocklist_reason`, and joined opportunity `assignedEmployee` and `lead_notes`.
+  - **Frontend Implementation:**
+    - Updated `Customer` model in Flutter to serialize/deserialize `blocklist_reason` / `blocklistReason`.
+    - Updated `Employee.canManage` to `isAdmin || isManager`.
+    - Updated `CustomerService.toggleBlocklist()` to pass optional `blocklist_reason`.
+    - Updated `CustomerProvider` with `blockCustomer(int customerId, {String? reason})` and `unblockCustomer(int customerId)`, refreshing active and blacklisted lists on mutation.
+    - Created `CustomerDetailScreen` (`lib/screens/customers/customer_detail_screen.dart`):
+      - Renders customer identity header: Name, initials avatar, phone with dialer trigger, billing address, customer tier / restricted badge.
+      - Displays prominent danger banner with blacklist reason when customer is blacklisted.
+      - Full lead history list sorted newest first with Deal Status badge (`WON`, `LOST`, `PIPELINE`, `OTHER`), Lead Temperature badge (`HOT`, `WARM`, `COLD`), project title, location, latest notes, and closure reason.
+      - Clean empty state with icon and descriptive messaging when no opportunities exist.
+      - Action button for "Blacklist Customer" or "Unblacklist Customer" (visible only to `ADMIN` and `MANAGER` roles via `authProvider.currentEmployee.canManage`).
+      - Blacklist action dialog enforces mandatory non-empty reason with validation before dispatching request.
+    - Updated `CustomerCategoryScreen` customer tiles to navigate to `CustomerDetailScreen` on tap.
+    - Updated `BlacklistedCustomersScreen` to display phone, address, blacklist reason banner, and tapping opens `CustomerDetailScreen`.
+  - **Files Modified / Created:**
+    - `Suniti V-2/prisma/schema.prisma`
+    - `Suniti V-2/prisma/migrations/20261114104631_add_blocklist_reason/migration.sql`
+    - `Suniti V-2/src/controllers/customer.controller.js`
+    - `Suniti V-2/test/live-api-test.js`
+    - `Lead-Tracker-App/lib/models/customer.dart`
+    - `Lead-Tracker-App/lib/models/employee.dart`
+    - `Lead-Tracker-App/lib/core/api/customer_service.dart`
+    - `Lead-Tracker-App/lib/providers/customer_provider.dart`
+    - `Lead-Tracker-App/lib/screens/customers/customer_detail_screen.dart` (new)
+    - `Lead-Tracker-App/lib/screens/customers/customer_category_screen.dart`
+    - `Lead-Tracker-App/lib/screens/blocklist/blacklisted_customers_screen.dart`
+    - `Lead-Tracker-App/test/customer_detail_and_blacklist_test.dart` (new)
+- **Verification & Test Results:**
+  - Flutter Analysis: `flutter analyze` — **No issues found (0 warnings/errors)**.
+  - Flutter Test Suite: `flutter test` — **29/29 passed (100%)**.
+  - Backend Live Tests: `node test/live-api-test.js` — **27/27 passed (100%)**.
+  - Android Debug APK Build: `flutter build apk --debug` succeeded.
+  - Android Emulator Verification: Installed on `emulator-5554` via `adb install -r`.
+
 ### 2026-11-14: Milestone 5B - Customer Search, Selection & Non-Duplicating Lead Creation
 - **Author:** Full-Stack Integration Agent
 - **Branch:** `feature/milestone-4b-full-integration`
