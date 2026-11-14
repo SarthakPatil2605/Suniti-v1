@@ -95,17 +95,27 @@ class OpportunityService {
     required String locationName,
     String leadTemperature = 'WARM',
     String dealStatus = 'PIPELINE',
+    String? conclusionNotes,
+    DateTime? nextCallDate,
   }) async {
     try {
+      final body = <String, dynamic>{
+        'customer_id': customerId,
+        'project_title': projectTitle.trim(),
+        'location_name': locationName.trim(),
+        'lead_temperature': leadTemperature,
+        'deal_status': dealStatus,
+      };
+      if (conclusionNotes != null && conclusionNotes.trim().isNotEmpty) {
+        body['conclusion_notes'] = conclusionNotes.trim();
+      }
+      if (nextCallDate != null) {
+        body['next_call_date'] = nextCallDate.toIso8601String();
+      }
+
       final response = await _apiClient.post(
         ApiEndpoints.opportunities,
-        data: {
-          'customer_id': customerId,
-          'project_title': projectTitle.trim(),
-          'location_name': locationName.trim(),
-          'lead_temperature': leadTemperature,
-          'deal_status': dealStatus,
-        },
+        data: body,
       );
       final data = response.data;
 

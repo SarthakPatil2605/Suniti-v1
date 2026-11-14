@@ -173,6 +173,7 @@ class CustomerService {
     required String locationName,
     String? phone,
     String? billingAddress,
+    String? tier,
     String leadTemperature = 'WARM',
     String? conclusionNotes,
     DateTime? nextCallDate,
@@ -185,6 +186,9 @@ class CustomerService {
         'lead_temperature': leadTemperature,
       };
 
+      if (tier != null && tier.trim().isNotEmpty) {
+        body['tier'] = tier.trim();
+      }
       if (phone != null && phone.trim().isNotEmpty) {
         body['phone'] = phone.trim();
       }

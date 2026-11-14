@@ -157,6 +157,30 @@ These findings are pending verification against the current backend code. Do not
 - **Next Milestone Recommendation:**
   - **Milestone 5 (End-to-End Live API Staging & User Acceptance Testing):** Connect Flutter client to live running PostgreSQL + Express backend instance, test authentication flow, live CRUD operations, and verify responsive layout on physical/virtual devices.
 
+### 2026-11-14: Milestone 5B - Customer Search, Selection & Non-Duplicating Lead Creation
+- **Author:** Full-Stack Integration Agent
+- **Branch:** `feature/milestone-4b-full-integration`
+- **Scope & Objectives:**
+  - Solved lead creation workflow problem where users lacked a convenient way to select existing customers, previously creating duplicate customer records.
+  - Implemented debounced customer search autocomplete in `CreateLeadScreen` querying `GET /api/customers?search=<query>`.
+  - Added clear UI/UX distinguishing:
+    1. **Select Existing Customer:** Displays searchable autocomplete with avatar initials, tier badge, contact phone number, and location details. Selecting a customer binds their `customerId` directly, auto-populates site location from billing address if blank, displays a verified green-bordered selected customer card with a change option, and associates newly created opportunities via `POST /api/opportunities`. Does NOT call `POST /api/customers/new`, preventing duplicate customer rows.
+    2. **Add New Customer:** Option displayed prominently both in top tab toggle and within search results when no matches or new customer needed. Collects company name, phone, billing address, and optional tier, creating customer + initial opportunity + follow-up task atomically via `POST /api/customers/new`.
+  - Updated `OpportunityService.createOpportunity` to pass optional `conclusion_notes` and `next_call_date` to the backend in one transactional request.
+  - Added unit test suite in `test/customer_search_and_selection_test.dart` covering partial name search, phone number search, distinguishing customers sharing similar names via phone/location, empty result handling, and verification that existing customers are not duplicated upon opportunity linking.
+- **Files Modified:**
+  - `Lead-Tracker-App/lib/screens/leads/create_lead_screen.dart`: Complete redesign of customer selection section with debounced search, selected customer card, and new customer toggle.
+  - `Lead-Tracker-App/lib/core/api/opportunity_service.dart`: Added optional `conclusion_notes` and `next_call_date` params to `createOpportunity()`.
+  - `Lead-Tracker-App/lib/core/api/customer_service.dart`: Added optional `tier` parameter to `createCustomerWithOpportunity()`.
+  - `Lead-Tracker-App/test/customer_search_and_selection_test.dart`: Added 5 unit tests for Milestone 5B.
+  - `Lead-Tracker-App/test/navigation_and_dashboard_test.dart`: Updated expectation for new customer selector label.
+- **Verification & Test Results:**
+  - Flutter Analysis: `flutter analyze` — **No issues found (0 warnings/errors)**.
+  - Flutter Test Suite: `flutter test` — **21/21 passed (100%)**.
+  - Backend Live API Suite: `node test/live-api-test.js` — **26/26 passed (100%)**.
+  - Android Debug APK: Built and installed on `emulator-5554` (`app-debug.apk`).
+
+
 ### 2026-11-14: Milestone 5A - Fix Four Reported Flutter Issues
 - **Author:** Full-Stack Integration Agent
 - **Branch:** `feature/milestone-4b-full-integration`

@@ -144,7 +144,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
 
         expect(find.text('Create Lead Track'), findsOneWidget);
-        expect(find.text('1. CUSTOMER SEGMENT'), findsOneWidget);
+        expect(find.text('Select Existing Customer'), findsOneWidget);
 
         // Close create lead modal
         await tester.tap(find.byIcon(Icons.close_rounded));
