@@ -20,6 +20,17 @@ enum EmployeeRole {
   }
 
   String toJson() => name;
+
+  String get displayName {
+    switch (this) {
+      case EmployeeRole.ADMIN:
+        return 'Administrator';
+      case EmployeeRole.MANAGER:
+        return 'Manager';
+      case EmployeeRole.SALES_REP:
+        return 'Sales Representative';
+    }
+  }
 }
 
 class Employee {

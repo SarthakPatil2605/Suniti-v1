@@ -7,6 +7,7 @@ import 'providers/auth_provider.dart';
 import 'providers/customer_provider.dart';
 import 'providers/lead_provider.dart';
 import 'providers/task_provider.dart';
+import 'providers/user_provider.dart';
 import 'screens/auth/auth_gate.dart';
 
 void main() {
@@ -25,6 +26,7 @@ class SunitiApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
         ChangeNotifierProvider(create: (_) => LeadProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: MaterialApp(
         title: 'Suniti CRM',

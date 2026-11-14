@@ -59,6 +59,7 @@ export async function getEmployees(req, res, next) {
     return res.status(200).json({
       status: 'success',
       count: employees.length,
+      users: employees,
       employees,
       data: employees,
     });
@@ -140,14 +141,22 @@ export async function createEmployee(req, res, next) {
   try {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password) {
+    if (!email || !password) {
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'Fields "name", "email", and "password" are required.',
+        message: 'Fields "email" and "password" are required.',
       });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid email address format.',
+      });
+    }
+
     const assignedRole = role ? role.toUpperCase() : 'SALES_REP';
 
     if (!VALID_ROLES.includes(assignedRole)) {
@@ -157,7 +166,7 @@ export async function createEmployee(req, res, next) {
       });
     }
 
-    if (password.length < 6) {
+    if (typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Password must be at least 6 characters long.',
@@ -176,10 +185,11 @@ export async function createEmployee(req, res, next) {
     }
 
     const password_hash = await bcrypt.hash(password, 10);
+    const userName = (name && name.trim()) ? name.trim() : normalizedEmail.split('@')[0];
 
     const newEmployee = await prisma.employee.create({
       data: {
-        name: name.trim(),
+        name: userName,
         email: normalizedEmail,
         password_hash,
         role: assignedRole,
@@ -195,7 +205,8 @@ export async function createEmployee(req, res, next) {
 
     return res.status(201).json({
       status: 'success',
-      message: 'Employee created successfully.',
+      message: 'User created successfully.',
+      user: newEmployee,
       employee: newEmployee,
       data: newEmployee,
     });

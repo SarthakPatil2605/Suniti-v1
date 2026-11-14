@@ -10,6 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/lead_provider.dart';
 import '../../providers/task_provider.dart';
 import '../blocklist/blacklisted_customers_screen.dart';
+import '../admin/manage_users_screen.dart';
 import '../customers/customer_list_screen.dart';
 import '../leads/create_lead_screen.dart';
 import '../leads/ongoing_leads_screen.dart';
@@ -44,6 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openTodaysCalls() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const TodaysCallsScreen()));
+  }
+
+  void _openManageUsers() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const ManageUsersScreen()));
   }
 
   @override
@@ -169,7 +175,29 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
+
+                      // Manage Users Icon (Visible strictly to ADMIN only)
+                      if (employee?.isAdmin == true) ...[
+                        Container(
+                          decoration: const BoxDecoration(
+                            color: AppColors.surface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            tooltip: 'Manage Users',
+                            icon: const Icon(
+                              Icons.manage_accounts_rounded,
+                              size: 20,
+                            ),
+                            color: AppColors.primary,
+                            onPressed: _openManageUsers,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+
+                      const SizedBox(width: 2),
 
                       // Employee Profile Avatar & Menu
                       PopupMenuButton<String>(
@@ -179,7 +207,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           side: const BorderSide(color: AppColors.border),
                         ),
                         onSelected: (value) {
-                          if (value == 'logout') {
+                          if (value == 'manage_users') {
+                            _openManageUsers();
+                          } else if (value == 'logout') {
                             authProvider.logout();
                           }
                         },
@@ -207,6 +237,28 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const PopupMenuDivider(),
+                          if (employee?.isAdmin == true) ...[
+                            const PopupMenuItem(
+                              value: 'manage_users',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.manage_accounts_rounded,
+                                    color: AppColors.primary,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Manage Users',
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                          ],
                           const PopupMenuItem(
                             value: 'logout',
                             child: Row(

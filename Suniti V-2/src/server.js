@@ -11,6 +11,7 @@ import customerRoutes from './routes/customer.routes.js';
 import opportunityRoutes from './routes/opportunity.routes.js';
 import leadNoteRoutes from './routes/leadNote.routes.js';
 import managerRoutes from './routes/manager.routes.js';
+import userRoutes from './routes/user.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -82,6 +83,8 @@ app.get('/health', async (req, res) => {
 // ==========================================
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin/users', userRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/admin/customers', customerRoutes); // Supports /api/admin/customers/:id/blocklist

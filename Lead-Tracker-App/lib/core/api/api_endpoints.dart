@@ -48,7 +48,9 @@ class ApiEndpoints {
       '/api/manager/audit/lead-history/$oppId';
   static const String managerAnalytics = '/api/manager/analytics';
 
-  // 7. Employees (/api/employees)
+  // 7. Employees & Users (/api/employees & /api/users)
   static const String employees = '/api/employees';
   static String employeeById(int id) => '/api/employees/$id';
+  static const String users = '/api/users';
+  static const String adminUsers = '/api/admin/users';
 }

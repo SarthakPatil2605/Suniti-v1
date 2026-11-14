@@ -157,6 +157,61 @@ These findings are pending verification against the current backend code. Do not
 - **Next Milestone Recommendation:**
   - **Milestone 5 (End-to-End Live API Staging & User Acceptance Testing):** Connect Flutter client to live running PostgreSQL + Express backend instance, test authentication flow, live CRUD operations, and verify responsive layout on physical/virtual devices.
 
+### 2026-11-14: Milestone 5D - Admin User Management
+- **Author:** Full-Stack Integration Agent
+- **Branch:** `feature/milestone-4b-full-integration`
+- **Scope & Objectives:**
+  - Implemented Admin-only user management allowing Administrators to provision CRM accounts for all three roles (`ADMIN`, `MANAGER`, `SALES_REP`) and view all existing CRM users.
+  - **Backend & Security:**
+    - Created `Suniti V-2/src/routes/user.routes.js` mounted at `/api/users` and `/api/admin/users`, guarded strictly by `verifyToken` and `verifyAdmin` middleware.
+    - Restricted employee creation in `Suniti V-2/src/routes/employee.routes.js` and `manager.routes.js` to `ADMIN` only (`verifyAdmin`), returning `403 Forbidden` to `MANAGER` and `SALES_REP`.
+    - Updated `createEmployee` controller in `Suniti V-2/src/controllers/manager.controller.js`:
+      - Email format validation with regex; returns `400 Bad Request` for invalid emails.
+      - Minimum 6-character password policy; returns `400 Bad Request` for short passwords.
+      - Role validation against `VALID_ROLES`; returns `400 Bad Request` for invalid roles.
+      - Duplicate email check returning `409 Conflict`.
+      - Password hashing using `bcrypt.hash(password, 10)` — plain-text passwords never stored.
+      - Auto-populates `name` from email username if not explicitly supplied.
+      - API responses return safe user profiles, never exposing `password_hash`.
+    - Updated `getEmployees` controller to return `users` collection alongside `employees` and `data`.
+  - **Frontend Implementation:**
+    - Updated `EmployeeRole` in `Lead-Tracker-App/lib/models/employee.dart` with `displayName` getter mapping to readable labels: `Administrator`, `Manager`, `Sales Representative`.
+    - Updated `ApiEndpoints` in `Lead-Tracker-App/lib/core/api/api_endpoints.dart` with `users` and `adminUsers`.
+    - Created `UserService` (`Lead-Tracker-App/lib/core/api/user_service.dart`) with `getUsers()` and `createUser()` handling HTTP responses and error mappings.
+    - Created `UserProvider` (`Lead-Tracker-App/lib/providers/user_provider.dart`) managing user list, creation lifecycle, duplicate/conflict error handling, and success notifications.
+    - Registered `UserProvider` in `SunitiApp` root `MultiProvider` in `Lead-Tracker-App/lib/main.dart`.
+    - Created `ManageUsersScreen` (`Lead-Tracker-App/lib/screens/admin/manage_users_screen.dart`):
+      - Security gate displaying access denied message for non-admin accounts.
+      - Add New User form with validated email, password with show/hide toggle, and role dropdown with readable labels.
+      - Submit button with spinner preventing duplicate submissions during active requests.
+      - Immediate password clearing and floating SnackBar feedback upon success.
+      - Existing CRM users list showing initials avatar, full name / email, role badge with color accents (`ADMIN`: blue, `MANAGER`: amber, `SALES_REP`: green), and formatted creation date.
+    - Updated `HomeScreen` (`Lead-Tracker-App/lib/screens/home/home_screen.dart`):
+      - Manage Users icon added to Top App Bar action row, visible strictly to `ADMIN` role.
+      - Completely hidden for `MANAGER` and `SALES_REP` roles.
+      - Added "Manage Users" shortcut in profile avatar popup menu for Administrators.
+  - **Files Modified / Created:**
+    - `Suniti V-2/src/controllers/manager.controller.js`
+    - `Suniti V-2/src/routes/user.routes.js` (new)
+    - `Suniti V-2/src/routes/employee.routes.js`
+    - `Suniti V-2/src/routes/manager.routes.js`
+    - `Suniti V-2/src/server.js`
+    - `Suniti V-2/test/live-api-test.js`
+    - `Lead-Tracker-App/lib/models/employee.dart`
+    - `Lead-Tracker-App/lib/core/api/api_endpoints.dart`
+    - `Lead-Tracker-App/lib/core/api/user_service.dart` (new)
+    - `Lead-Tracker-App/lib/providers/user_provider.dart` (new)
+    - `Lead-Tracker-App/lib/screens/admin/manage_users_screen.dart` (new)
+    - `Lead-Tracker-App/lib/screens/home/home_screen.dart`
+    - `Lead-Tracker-App/lib/main.dart`
+    - `Lead-Tracker-App/test/manage_users_test.dart` (new)
+- **Verification & Test Results:**
+  - Flutter Analysis: `flutter analyze` — **No issues found (0 warnings/errors)**.
+  - Flutter Test Suite: `flutter test` — **40/40 passed (100%)**.
+  - Backend Live Tests: `node test/live-api-test.js` — **42/42 passed (100%)**.
+  - Android Debug APK Build: `flutter build apk --debug` succeeded.
+  - Android Emulator Verification: Installed on `emulator-5554` via `adb install -r`.
+
 ### 2026-11-14: Milestone 5C - Customer Blacklisting & Complete Lead History
 - **Author:** Full-Stack Integration Agent
 - **Branch:** `feature/milestone-4b-full-integration`

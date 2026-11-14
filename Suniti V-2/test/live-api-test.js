@@ -484,6 +484,176 @@ async function run() {
   });
 
   // -----------------------------------------------------------------
+  // 8. Admin User Management (Milestone 5D)
+  // -----------------------------------------------------------------
+  const testTimestamp = Date.now();
+  const testSalesEmail = `test.rep.${testTimestamp}@suniti.test`;
+  const testManagerEmail = `test.mgr.${testTimestamp}@suniti.test`;
+  const testAdminEmail = `test.admin.${testTimestamp}@suniti.test`;
+
+  await runTest('User Management', 'GET /api/users rejects unauthenticated access (401)', async () => {
+    const res = await api('/api/users');
+    assert.equal(res.status, 401);
+  });
+
+  await runTest('User Management', 'GET /api/users rejects SALES_REP access (403 Forbidden)', async () => {
+    const res = await api('/api/users', {
+      headers: { Authorization: `Bearer ${salesToken}` },
+    });
+    assert.equal(res.status, 403);
+  });
+
+  await runTest('User Management', 'GET /api/users rejects MANAGER access (403 Forbidden)', async () => {
+    const res = await api('/api/users', {
+      headers: { Authorization: `Bearer ${managerToken}` },
+    });
+    assert.equal(res.status, 403);
+  });
+
+  await runTest('User Management', 'GET /api/users allows ADMIN access and never exposes password_hash', async () => {
+    const res = await api('/api/users', {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(res.data.users || res.data.employees));
+    const list = res.data.users || res.data.employees;
+    assert.ok(list.length > 0);
+    for (const u of list) {
+      assert.equal(u.password_hash, undefined, 'password_hash must never be exposed');
+      assert.ok(u.email);
+      assert.ok(u.role);
+    }
+  });
+
+  await runTest('User Management', 'POST /api/users rejects unauthenticated requests (401)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      body: { email: testSalesEmail, password: 'SecurePassword123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 401);
+  });
+
+  await runTest('User Management', 'POST /api/users rejects SALES_REP requests (403 Forbidden)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${salesToken}` },
+      body: { email: testSalesEmail, password: 'SecurePassword123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 403);
+  });
+
+  await runTest('User Management', 'POST /api/users rejects MANAGER requests (403 Forbidden)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${managerToken}` },
+      body: { email: testSalesEmail, password: 'SecurePassword123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 403);
+  });
+
+  await runTest('User Management', 'POST /api/users rejects invalid email format (400)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: 'not-a-valid-email', password: 'SecurePassword123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 400);
+  });
+
+  await runTest('User Management', 'POST /api/users rejects invalid role (400)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: testSalesEmail, password: 'SecurePassword123', role: 'SUPER_HERO' },
+    });
+    assert.equal(res.status, 400);
+  });
+
+  await runTest('User Management', 'POST /api/users rejects password shorter than 6 characters (400)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: testSalesEmail, password: '123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 400);
+  });
+
+  let createdSalesRepId;
+  await runTest('User Management', 'ADMIN can create SALES_REP account without exposing password_hash', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: testSalesEmail, password: 'RepPassword123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 201);
+    const user = res.data.user || res.data.employee || res.data.data;
+    assert.ok(user);
+    assert.equal(user.email, testSalesEmail);
+    assert.equal(user.role, 'SALES_REP');
+    assert.equal(user.password_hash, undefined, 'password_hash must never be returned');
+    assert.ok(user.employee_id);
+    createdSalesRepId = user.employee_id;
+  });
+
+  let createdManagerId;
+  await runTest('User Management', 'ADMIN can create MANAGER account', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: testManagerEmail, password: 'ManagerPassword123', role: 'MANAGER' },
+    });
+    assert.equal(res.status, 201);
+    const user = res.data.user || res.data.employee || res.data.data;
+    assert.equal(user.role, 'MANAGER');
+    assert.equal(user.password_hash, undefined);
+    createdManagerId = user.employee_id;
+  });
+
+  let createdAdminId;
+  await runTest('User Management', 'ADMIN can create ADMIN account', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: testAdminEmail, password: 'AdminPassword123', role: 'ADMIN' },
+    });
+    assert.equal(res.status, 201);
+    const user = res.data.user || res.data.employee || res.data.data;
+    assert.equal(user.role, 'ADMIN');
+    assert.equal(user.password_hash, undefined);
+    createdAdminId = user.employee_id;
+  });
+
+  await runTest('User Management', 'POST /api/users rejects duplicate email address (409 Conflict)', async () => {
+    const res = await api('/api/users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: { email: testSalesEmail, password: 'AnotherPassword123', role: 'SALES_REP' },
+    });
+    assert.equal(res.status, 409);
+  });
+
+  await runTest('User Management', 'Newly created user can authenticate and log in with JWT', async () => {
+    const res = await api('/api/auth/login', {
+      method: 'POST',
+      body: { email: testSalesEmail, password: 'RepPassword123' },
+    });
+    assert.equal(res.status, 200);
+    assert.ok(res.data.token);
+    assert.equal(res.data.user.email, testSalesEmail);
+    assert.equal(res.data.user.role, 'SALES_REP');
+  });
+
+  // Clean up test created users to preserve clean test database
+  if (createdSalesRepId || createdManagerId || createdAdminId) {
+    for (const id of [createdSalesRepId, createdManagerId, createdAdminId].filter(Boolean)) {
+      await api(`/api/employees/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }).catch(() => {});
+    }
+  }
+
+  // -----------------------------------------------------------------
   // Summary
   // -----------------------------------------------------------------
   console.log(`\n===============================================================`);

@@ -52,8 +52,8 @@ router.get('/analytics/export', getAnalyticsReport);
 // GET /api/manager/employees - List all staff members
 router.get('/employees', getEmployees);
 
-// POST /api/manager/employees - Create new staff member
-router.post('/employees', createEmployee);
+// POST /api/manager/employees - Create new staff member (Admin only)
+router.post('/employees', verifyAdmin, createEmployee);
 
 // GET /api/manager/employees/:id - Get specific staff member by ID
 router.get('/employees/:id', getEmployeeById);

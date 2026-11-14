@@ -24,8 +24,8 @@ router.get('/', getEmployees);
 // GET /api/employees/:id - Retrieve specific employee details
 router.get('/:id', getEmployeeById);
 
-// POST /api/employees - Provision new employee (Manager or Admin)
-router.post('/', verifyManagerOrAdmin, createEmployee);
+// POST /api/employees - Provision new employee (Admin only)
+router.post('/', verifyAdmin, createEmployee);
 
 // PATCH /api/employees/:id - Update employee role/profile (Manager or Admin)
 router.patch('/:id', verifyManagerOrAdmin, updateEmployee);
