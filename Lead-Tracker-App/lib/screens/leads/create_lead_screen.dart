@@ -125,8 +125,9 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
         );
 
         if (!mounted) return;
-        // Refresh providers
+        // Refresh providers (both existing and new customers)
         await custProvider.loadExistingCustomers();
+        await custProvider.loadNewCustomers();
         await ldProvider.loadOngoingLeads();
 
         messenger.showSnackBar(

@@ -56,78 +56,32 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
 
     showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.surfaceElevated,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.radiusLg,
-          side: const BorderSide(color: AppColors.border),
-        ),
-        title: const Text(
-          'Mark Call as Done',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Customer: ${task.companyName}',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
+      barrierDismissible: false,
+      builder: (dialogCtx) => _CompleteCallDialog(
+        task: task,
+        notesController: notesController,
+        onComplete: (conclusionNotes) async {
+          final taskProvider = context.read<TaskProvider>();
+          await taskProvider.completeTask(
+            task.taskId,
+            conclusionNotes: conclusionNotes,
+          );
+          // Check if there was an error
+          if (taskProvider.errorMessage != null) {
+            throw Exception(taskProvider.errorMessage);
+          }
+        },
+        onSuccess: () {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Call marked as completed.'),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: AppColors.callGreen,
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesController,
-              maxLines: 3,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-              ),
-              decoration: const InputDecoration(
-                hintText: 'Add conversation conclusion notes...',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textMuted),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.callGreen,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            ),
-            onPressed: () async {
-              Navigator.of(dialogCtx).pop();
-              await context.read<TaskProvider>().completeTask(
-                task.taskId,
-                conclusionNotes: notesController.text.trim().isNotEmpty
-                    ? notesController.text.trim()
-                    : null,
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Call marked as completed.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-            child: const Text('Complete Call'),
-          ),
-        ],
+            );
+          }
+        },
       ),
     );
   }
@@ -398,18 +352,19 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
               height: 64,
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.border),
+                borderRadius: AppRadius.radiusXl,
               ),
-              child: const Icon(
-                Icons.check_circle_rounded,
-                size: 36,
-                color: AppColors.callGreen,
+              child: const Center(
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.callGreen,
+                  size: 36,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             const Text(
-              'All Caught Up!',
+              'All calls done for today!',
               style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 18,
@@ -418,9 +373,9 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'No phone calls or follow-ups are due for today.',
+              'No pending follow-up calls scheduled for today.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -431,32 +386,165 @@ class _TodaysCallsScreenState extends State<TodaysCallsScreen> {
   Widget _buildErrorView(TaskProvider provider) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.error_outline_rounded,
+              Icons.cloud_off_rounded,
               size: 48,
-              color: AppColors.danger,
+              color: AppColors.textMuted,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
-              provider.errorMessage ?? 'An error occurred loading tasks.',
+              provider.errorMessage ?? 'Failed to load tasks.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 14,
               ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => provider.loadTodayTasks(),
-              child: const Text('Retry'),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                provider.clearError();
+                provider.loadTodayTasks();
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stateful dialog widget that manages its own loading/error state
+// ---------------------------------------------------------------------------
+class _CompleteCallDialog extends StatefulWidget {
+  final DailyTask task;
+  final TextEditingController notesController;
+  final Future<void> Function(String?) onComplete;
+  final VoidCallback onSuccess;
+
+  const _CompleteCallDialog({
+    required this.task,
+    required this.notesController,
+    required this.onComplete,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_CompleteCallDialog> createState() => _CompleteCallDialogState();
+}
+
+class _CompleteCallDialogState extends State<_CompleteCallDialog> {
+  bool _isSubmitting = false;
+  String? _error;
+
+  Future<void> _handleComplete() async {
+    if (_isSubmitting) return; // Prevent duplicate submissions
+
+    setState(() {
+      _isSubmitting = true;
+      _error = null;
+    });
+
+    try {
+      final notes = widget.notesController.text.trim();
+      await widget.onComplete(notes.isNotEmpty ? notes : null);
+
+      if (!mounted) return;
+      // Success — close dialog and notify parent
+      Navigator.of(context).pop();
+      widget.onSuccess();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.radiusLg,
+        side: const BorderSide(color: AppColors.border),
+      ),
+      title: const Text(
+        'Mark Call as Done',
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Customer: ${widget.task.companyName}',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: widget.notesController,
+            maxLines: 3,
+            enabled: !_isSubmitting,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: const InputDecoration(
+              hintText: 'Add conversation conclusion notes...',
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              style: const TextStyle(color: AppColors.danger, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              color: _isSubmitting
+                  ? AppColors.textMuted
+                  : AppColors.textSecondary,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.callGreen,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          ),
+          onPressed: _isSubmitting ? null : _handleComplete,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text('Complete Call'),
+        ),
+      ],
     );
   }
 }

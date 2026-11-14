@@ -157,3 +157,28 @@ These findings are pending verification against the current backend code. Do not
 - **Next Milestone Recommendation:**
   - **Milestone 5 (End-to-End Live API Staging & User Acceptance Testing):** Connect Flutter client to live running PostgreSQL + Express backend instance, test authentication flow, live CRUD operations, and verify responsive layout on physical/virtual devices.
 
+### 2026-11-14: Milestone 5A - Fix Four Reported Flutter Issues
+- **Author:** Full-Stack Integration Agent
+- **Branch:** `feature/milestone-4b-full-integration`
+- **Scope & Objectives:**
+  - Fixed four issues identified during live Android emulator testing against the running Express + PostgreSQL backend.
+  1. **Completion dialog and list:** In `todays_calls_screen.dart`, created `_CompleteCallDialog` which maintains internal loading state (`_isSubmitting`), disables duplicate submissions, displays error messages inline without dismissing the dialog on failure, and automatically dismisses on success while updating `TaskProvider` counts.
+  2. **New customer visibility:** Added `loadNewCustomers()` in `CustomerProvider` calling `GET /api/customers?customer_type=NEW`. Updated `create_lead_screen.dart` to trigger both `loadExistingCustomers()` and `loadNewCustomers()` on creation. Updated `customer_list_screen.dart` so the "New Customers" tile displays active count and opens `CustomerCategoryScreen` configured for `CustomerType.NEW`.
+  3. **Customer filters:** Replaced the placeholder snackbar in `customer_category_screen.dart` with a full-featured filter bottom sheet supporting Customer Name partial search, Location matching (`billing_address`/`location_name`), Customer Category (`NEW`), and Customer Tier (`PREMIUM`, `LOYAL`, `INTERIOR_DESIGNER`). Filters map directly to backend `GET /api/customers` query parameters.
+  4. **Back navigation black screen:** Removed accidental `AppBar(leading)` back buttons from root tabs inside `MainShell` (`IndexedStack`), specifically `customer_list_screen.dart`. Wrapped `MainShell` in `PopScope` to handle Android system back button cleanly at the root navigation level.
+- **Files Modified:**
+  - `Lead-Tracker-App/lib/core/api/customer_service.dart`: Added `getNewCustomers()` and `getAllCustomers()` methods.
+  - `Lead-Tracker-App/lib/providers/customer_provider.dart`: Added `loadNewCustomers()`, `loadFilteredCustomers()`, and state properties.
+  - `Lead-Tracker-App/lib/screens/customers/customer_list_screen.dart`: Removed incorrect back button; wired "New Customers" tile.
+  - `Lead-Tracker-App/lib/screens/customers/customer_category_screen.dart`: Added filter bottom sheet and new customer handling.
+  - `Lead-Tracker-App/lib/screens/leads/create_lead_screen.dart`: Added `loadNewCustomers()` refresh.
+  - `Lead-Tracker-App/lib/screens/tasks/todays_calls_screen.dart`: Implemented stateful completion dialog with loading, error, and auto-dismiss.
+  - `Lead-Tracker-App/test/customer_filter_and_new_test.dart`: Added unit tests for new customer and filter provider methods.
+- **Verification & Test Results:**
+  - Flutter Analysis: `flutter analyze` — **No issues found (0 warnings/errors)**.
+  - Flutter Test Suite: `flutter test` — **16/16 passed (100%)**.
+  - Backend Live API Suite: `node test/live-api-test.js` — **26/26 passed (100%)**.
+  - Android Debug APK Build: `flutter build apk --debug` — **Built `build/app/outputs/flutter-apk/app-debug.apk` in 42.4s**.
+  - Emulator Installation: Installed and launched on `emulator-5554` without crashes or navigation black screens.
+
+

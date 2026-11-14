@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -20,7 +21,21 @@ async function main() {
   });
   console.log(`👤 Admin Employee ready: ${admin.name} (${admin.email}, ID: ${admin.employee_id})`);
 
-  // 2. Seed initial sales rep
+  // 2. Seed initial manager
+  const managerPasswordHash = await bcrypt.hash('Manager@Suniti2026', 10);
+  const manager = await prisma.employee.upsert({
+    where: { email: 'priya.manager@suniticonstruction.com' },
+    update: {},
+    create: {
+      name: 'Priya Manager',
+      email: 'priya.manager@suniticonstruction.com',
+      password_hash: managerPasswordHash,
+      role: 'MANAGER',
+    },
+  });
+  console.log(`👤 Manager Employee ready: ${manager.name} (${manager.email}, ID: ${manager.employee_id})`);
+
+  // 3. Seed initial sales rep
   const salesPasswordHash = await bcrypt.hash('Sales@Suniti2026', 10);
   const salesRep = await prisma.employee.upsert({
     where: { email: 'rahul.sales@suniticonstruction.com' },
@@ -34,7 +49,7 @@ async function main() {
   });
   console.log(`👤 Sales Rep ready: ${salesRep.name} (${salesRep.email}, ID: ${salesRep.employee_id})`);
 
-  // 3. Seed sample customer
+  // 4. Seed sample customer
   const customer = await prisma.customer.create({
     data: {
       name: 'Oberoi Sky Heights Interiors',

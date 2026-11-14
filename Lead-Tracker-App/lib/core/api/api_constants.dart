@@ -1,4 +1,5 @@
 // Core API configuration constants
+import 'package:flutter/foundation.dart';
 
 class ApiConstants {
   ApiConstants._();
@@ -14,8 +15,14 @@ class ApiConstants {
   static const String emulatorBaseUrl = 'http://10.0.2.2:5000';
   static const String localHostBaseUrl = 'http://localhost:5000';
 
-  /// Active default base URL (can be updated at runtime via ApiClient.setBaseUrl)
-  static const String defaultBaseUrl = emulatorBaseUrl;
+  /// Active default base URL (can be updated at runtime via ApiClient.setBaseUrl
+  /// or specified at build time using --dart-define=API_BASE_URL=...)
+  static final String defaultBaseUrl =
+      const String.fromEnvironment('API_BASE_URL').isNotEmpty
+      ? const String.fromEnvironment('API_BASE_URL')
+      : (kIsWeb || defaultTargetPlatform == TargetPlatform.windows
+            ? localHostBaseUrl
+            : emulatorBaseUrl);
 
   /// Timeouts
   static const Duration connectTimeout = Duration(seconds: 15);

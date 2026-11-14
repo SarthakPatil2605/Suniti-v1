@@ -10,6 +10,7 @@
  * - G: Customer location filtering (billing_address & opportunity location_name)
  */
 
+import 'dotenv/config';
 import assert from 'node:assert/strict';
 import app from '../src/server.js';
 import { signToken } from '../src/utils/jwt.js';

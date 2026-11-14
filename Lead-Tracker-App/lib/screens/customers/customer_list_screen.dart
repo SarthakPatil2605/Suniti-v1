@@ -2,10 +2,6 @@
 // Matches ui-screen/491acbcb26-718a48a6d30c15ab4a22.png
 // Four category tiles: Premium, Loyal, Interior Designers, New Customers
 // Global statistics bar at bottom.
-// NOTE: "New Customers" count is not available from /api/customers/existing
-// (which only returns EXISTING customers grouped by tier). The backend has no
-// separate GET endpoint for new customers. The count tile for New Customers
-// is shown but its count is unavailable until a dedicated endpoint is added.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,7 +26,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     super.initState();
     // Load data on first open
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CustomerProvider>().loadExistingCustomers();
+      final provider = context.read<CustomerProvider>();
+      provider.loadExistingCustomers();
+      provider.loadNewCustomers();
     });
     _searchController.addListener(() {
       setState(
@@ -52,10 +50,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        // Do NOT show a back button when inside the bottom nav shell
+        automaticallyImplyLeading: false,
         title: const Text(
           'Customers',
           style: TextStyle(
@@ -82,7 +78,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       body: RefreshIndicator(
         color: AppColors.primary,
         backgroundColor: AppColors.surface,
-        onRefresh: () => provider.loadExistingCustomers(),
+        onRefresh: () async {
+          await provider.loadExistingCustomers();
+          await provider.loadNewCustomers();
+        },
         child: provider.isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
@@ -98,6 +97,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     final premiumCount = provider.countForTier(CustomerTier.PREMIUM);
     final loyalCount = provider.countForTier(CustomerTier.LOYAL);
     final interiorCount = provider.countForTier(CustomerTier.INTERIOR_DESIGNER);
+    final newCount = provider.newCustomersCount;
     final totalExisting = provider.totalExistingCustomers;
 
     // Filter categories by search query (category name match)
@@ -105,6 +105,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       premiumCount: premiumCount,
       loyalCount: loyalCount,
       interiorCount: interiorCount,
+      newCount: newCount,
     );
 
     final filtered = _searchQuery.isEmpty
@@ -132,9 +133,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   iconColor: cat.color,
                   label: cat.label,
                   count: cat.count,
-                  onTap: cat.tier != null
-                      ? () => _openCategory(context, cat)
-                      : null,
+                  onTap: () => _openCategory(context, cat),
                 ),
               );
             }, childCount: filtered.length),
@@ -142,7 +141,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          sliver: SliverToBoxAdapter(child: _buildGlobalStats(totalExisting)),
+          sliver: SliverToBoxAdapter(
+            child: _buildGlobalStats(totalExisting + newCount),
+          ),
         ),
       ],
     );
@@ -152,10 +153,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     required int premiumCount,
     required int loyalCount,
     required int interiorCount,
+    required int newCount,
   }) {
     return [
       _CategoryData(
         tier: CustomerTier.PREMIUM,
+        isNewCategory: false,
         label: 'Premium',
         icon: Icons.workspace_premium_rounded,
         color: AppColors.tierPremium,
@@ -163,6 +166,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ),
       _CategoryData(
         tier: CustomerTier.LOYAL,
+        isNewCategory: false,
         label: 'Loyal',
         icon: Icons.favorite_rounded,
         color: AppColors.tierLoyal,
@@ -170,18 +174,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ),
       _CategoryData(
         tier: CustomerTier.INTERIOR_DESIGNER,
+        isNewCategory: false,
         label: 'Interior Designers',
         icon: Icons.design_services_rounded,
         color: AppColors.tierInterior,
         count: interiorCount,
       ),
-      // New Customers: CustomerType.NEW — no count available without a dedicated endpoint
       _CategoryData(
         tier: null,
+        isNewCategory: true,
         label: 'New Customers',
         icon: Icons.person_add_rounded,
         color: AppColors.typeNew,
-        count: null,
+        count: newCount,
       ),
     ];
   }
@@ -213,7 +218,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     );
   }
 
-  Widget _buildGlobalStats(int totalExisting) {
+  Widget _buildGlobalStats(int totalCustomers) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       decoration: BoxDecoration(
@@ -241,7 +246,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      totalExisting.toString(),
+                      totalCustomers.toString(),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 32,
@@ -261,20 +266,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
               ),
               Container(width: 1, height: 48, color: AppColors.border),
               const SizedBox(width: 24),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '—',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.callGreen,
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    const Text(
+                    SizedBox(height: 2),
+                    Text(
                       'Active Pipeline',
                       style: TextStyle(
                         color: AppColors.textSecondary,
@@ -314,7 +319,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () => provider.loadExistingCustomers(),
+              onPressed: () {
+                provider.loadExistingCustomers();
+                provider.loadNewCustomers();
+              },
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Retry'),
             ),
@@ -325,17 +333,32 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   }
 
   void _openCategory(BuildContext context, _CategoryData cat) {
-    if (cat.tier == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CustomerCategoryScreen(
-          tier: cat.tier!,
-          label: cat.label,
-          color: cat.color,
-          icon: cat.icon,
+    if (cat.isNewCategory) {
+      // Navigate to New Customers screen
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerCategoryScreen(
+            tier: null,
+            isNewCategory: true,
+            label: cat.label,
+            color: cat.color,
+            icon: cat.icon,
+          ),
         ),
-      ),
-    );
+      );
+    } else if (cat.tier != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerCategoryScreen(
+            tier: cat.tier!,
+            isNewCategory: false,
+            label: cat.label,
+            color: cat.color,
+            icon: cat.icon,
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -345,13 +368,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
 class _CategoryData {
   final CustomerTier? tier;
+  final bool isNewCategory;
   final String label;
   final IconData icon;
   final Color color;
-  final int? count; // null = not available from backend yet
+  final int count;
 
   const _CategoryData({
     required this.tier,
+    required this.isNewCategory,
     required this.label,
     required this.icon,
     required this.color,
@@ -363,7 +388,7 @@ class _CategoryTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final String label;
-  final int? count;
+  final int count;
   final VoidCallback? onTap;
 
   const _CategoryTile({
@@ -376,9 +401,7 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final countLabel = count != null
-        ? '$count Active Leads'
-        : 'No data available';
+    final countLabel = '$count Active Leads';
 
     return GestureDetector(
       onTap: onTap,
@@ -399,23 +422,22 @@ class _CategoryTile extends StatelessWidget {
                 color: iconColor.withValues(alpha: 0.15),
                 borderRadius: AppRadius.radiusLg,
               ),
-              child: Icon(icon, color: iconColor, size: 26),
+              child: Center(child: Icon(icon, color: iconColor, size: 26)),
             ),
             const SizedBox(width: 16),
-            // Label + count
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
-                      color: iconColor,
-                      fontSize: 17,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     countLabel,
                     style: const TextStyle(
@@ -426,12 +448,11 @@ class _CategoryTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (onTap != null)
-              Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textMuted,
-                size: 22,
-              ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textMuted,
+              size: 22,
+            ),
           ],
         ),
       ),

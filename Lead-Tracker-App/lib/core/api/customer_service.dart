@@ -47,6 +47,14 @@ class CreateCustomerWithOpportunityResult {
   });
 }
 
+/// Response from GET /api/customers (general search with filters)
+class AllCustomersResult {
+  final int count;
+  final List<Customer> customers;
+
+  const AllCustomersResult({required this.count, required this.customers});
+}
+
 class CustomerService {
   final ApiClient _apiClient;
 
@@ -221,6 +229,87 @@ class CustomerService {
       rethrow;
     } catch (e) {
       throw UnexpectedApiException(message: 'Failed to create customer: $e');
+    }
+  }
+
+  /// GET /api/customers?customer_type=NEW
+  /// Returns customers created with customer_type = 'NEW'.
+  Future<List<Customer>> getNewCustomers() async {
+    try {
+      final response = await _apiClient.get(
+        ApiEndpoints.customers,
+        queryParameters: {'customer_type': 'NEW'},
+      );
+      final data = response.data;
+
+      if (data is Map<String, dynamic>) {
+        final rawList = data['customers'] ?? data['data'];
+        if (rawList is List) {
+          return rawList
+              .whereType<Map<String, dynamic>>()
+              .map(Customer.fromJson)
+              .toList();
+        }
+      }
+      return [];
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedApiException(message: 'Failed to load new customers: $e');
+    }
+  }
+
+  /// GET /api/customers with optional query params for search/filter.
+  /// Supports: search, location, customer_type, tier, is_blocklisted.
+  Future<AllCustomersResult> getAllCustomers({
+    String? search,
+    String? location,
+    String? customerType,
+    String? tier,
+    bool? isBlocklisted,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      if (location != null && location.trim().isNotEmpty) {
+        queryParams['location'] = location.trim();
+      }
+      if (customerType != null && customerType.trim().isNotEmpty) {
+        queryParams['customer_type'] = customerType.trim();
+      }
+      if (tier != null && tier.trim().isNotEmpty) {
+        queryParams['tier'] = tier.trim();
+      }
+      if (isBlocklisted != null) {
+        queryParams['is_blocklisted'] = isBlocklisted.toString();
+      }
+
+      final response = await _apiClient.get(
+        ApiEndpoints.customers,
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+      final data = response.data;
+
+      if (data is Map<String, dynamic>) {
+        final count = data['count'] as int? ?? 0;
+        final rawList = data['customers'] ?? data['data'];
+        final customers = <Customer>[];
+        if (rawList is List) {
+          for (final item in rawList) {
+            if (item is Map<String, dynamic>) {
+              customers.add(Customer.fromJson(item));
+            }
+          }
+        }
+        return AllCustomersResult(count: count, customers: customers);
+      }
+      return const AllCustomersResult(count: 0, customers: []);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw UnexpectedApiException(message: 'Failed to load customers: $e');
     }
   }
 
