@@ -28,7 +28,8 @@ enum LeadTemperature {
 enum DealStatus {
   PIPELINE,
   CLOSED_WON,
-  CLOSED_LOST;
+  CLOSED_LOST,
+  OTHER;
 
   static DealStatus fromString(String? value) {
     switch (value?.toUpperCase()) {
@@ -36,6 +37,8 @@ enum DealStatus {
         return DealStatus.CLOSED_WON;
       case 'CLOSED_LOST':
         return DealStatus.CLOSED_LOST;
+      case 'OTHER':
+        return DealStatus.OTHER;
       case 'PIPELINE':
       default:
         return DealStatus.PIPELINE;
@@ -85,6 +88,7 @@ class Opportunity {
   final LeadTemperature leadTemperature;
   final DealStatus dealStatus;
   final ProjectPhase projectPhase;
+  final String? closureReason;
   final bool isCompleted;
   final DateTime? completedAt;
   final int? completedBy;
@@ -104,6 +108,7 @@ class Opportunity {
     this.leadTemperature = LeadTemperature.WARM,
     this.dealStatus = DealStatus.PIPELINE,
     this.projectPhase = ProjectPhase.TALKING,
+    this.closureReason,
     this.isCompleted = false,
     this.completedAt,
     this.completedBy,
@@ -119,6 +124,8 @@ class Opportunity {
 
   bool get isClosedWon => dealStatus == DealStatus.CLOSED_WON;
   bool get isClosedLost => dealStatus == DealStatus.CLOSED_LOST;
+  bool get isOther => dealStatus == DealStatus.OTHER;
+  bool get isClosed => isClosedWon || isClosedLost || isOther;
   bool get isPipeline => dealStatus == DealStatus.PIPELINE;
 
   factory Opportunity.fromJson(Map<String, dynamic> json) {
@@ -133,6 +140,7 @@ class Opportunity {
       ),
       dealStatus: DealStatus.fromString(json['deal_status'] as String?),
       projectPhase: ProjectPhase.fromString(json['project_phase'] as String?),
+      closureReason: json['closure_reason'] as String?,
       isCompleted: json['is_completed'] as bool? ?? false,
       completedAt: json['completed_at'] != null
           ? DateTime.tryParse(json['completed_at'].toString())
@@ -168,6 +176,7 @@ class Opportunity {
       'lead_temperature': leadTemperature.toJson(),
       'deal_status': dealStatus.toJson(),
       'project_phase': projectPhase.toJson(),
+      if (closureReason != null) 'closure_reason': closureReason,
       'is_completed': isCompleted,
       if (completedAt != null) 'completed_at': completedAt!.toIso8601String(),
       if (completedBy != null) 'completed_by': completedBy,
@@ -185,6 +194,7 @@ class Opportunity {
     LeadTemperature? leadTemperature,
     DealStatus? dealStatus,
     ProjectPhase? projectPhase,
+    String? closureReason,
     bool? isCompleted,
     DateTime? completedAt,
     int? completedBy,
@@ -202,6 +212,7 @@ class Opportunity {
       leadTemperature: leadTemperature ?? this.leadTemperature,
       dealStatus: dealStatus ?? this.dealStatus,
       projectPhase: projectPhase ?? this.projectPhase,
+      closureReason: closureReason ?? this.closureReason,
       isCompleted: isCompleted ?? this.isCompleted,
       completedAt: completedAt ?? this.completedAt,
       completedBy: completedBy ?? this.completedBy,

@@ -471,6 +471,7 @@ class _LeadDetailSheet extends StatelessWidget {
 
   void _showCloseDealDialog(BuildContext context) {
     final notesController = TextEditingController();
+    final reasonController = TextEditingController();
     String selectedStatus = 'CLOSED_WON';
     String selectedTier = 'LOYAL';
 
@@ -490,39 +491,13 @@ class _LeadDetailSheet extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Status Option (Backend Supported):',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                initialValue: selectedStatus,
-                dropdownColor: AppColors.surface,
-                style: const TextStyle(color: AppColors.textPrimary),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'CLOSED_WON',
-                    child: Text('Closed Won (Lead Completed)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'CLOSED_LOST',
-                    child: Text('Closed Lost'),
-                  ),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    setDialogState(() => selectedStatus = val);
-                  }
-                },
-              ),
-              if (selectedStatus == 'CLOSED_WON') ...[
-                const SizedBox(height: 12),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 const Text(
-                  'Assigned Customer Tier:',
+                  'Status Option (Backend Supported):',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
@@ -530,43 +505,107 @@ class _LeadDetailSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  initialValue: selectedTier,
+                  initialValue: selectedStatus,
                   dropdownColor: AppColors.surface,
                   style: const TextStyle(color: AppColors.textPrimary),
                   items: const [
                     DropdownMenuItem(
-                      value: 'PREMIUM',
-                      child: Text('Premium Customer'),
+                      value: 'CLOSED_WON',
+                      child: Text('Closed Won (Lead Completed)'),
                     ),
                     DropdownMenuItem(
-                      value: 'LOYAL',
-                      child: Text('Loyal Customer'),
+                      value: 'CLOSED_LOST',
+                      child: Text('Closed Lost'),
                     ),
-                    DropdownMenuItem(
-                      value: 'INTERIOR_DESIGNER',
-                      child: Text('Interior Designer'),
-                    ),
+                    DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                   ],
                   onChanged: (val) {
                     if (val != null) {
-                      setDialogState(() => selectedTier = val);
+                      setDialogState(() => selectedStatus = val);
                     }
                   },
                 ),
+                if (selectedStatus == 'CLOSED_WON') ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Assigned Customer Tier:',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedTier,
+                    dropdownColor: AppColors.surface,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'PREMIUM',
+                        child: Text('Premium Customer'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'LOYAL',
+                        child: Text('Loyal Customer'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'INTERIOR_DESIGNER',
+                        child: Text('Interior Designer'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedTier = val);
+                      }
+                    },
+                  ),
+                ],
+                if (selectedStatus == 'OTHER' ||
+                    selectedStatus == 'CLOSED_LOST') ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Closure Reason:',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: reasonController,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: selectedStatus == 'OTHER'
+                          ? 'Reason (e.g. Deferred, Invalid, etc.)...'
+                          : 'Reason for lost deal...',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Conclusion Notes:',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: notesController,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'Conclusion notes...',
+                  ),
+                ),
               ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: notesController,
-                maxLines: 2,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                ),
-                decoration: const InputDecoration(
-                  hintText: 'Conclusion notes...',
-                ),
-              ),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -586,6 +625,12 @@ class _LeadDetailSheet extends StatelessWidget {
                     tier: selectedStatus == 'CLOSED_WON' ? selectedTier : null,
                     conclusionNotes: notesController.text.trim().isNotEmpty
                         ? notesController.text.trim()
+                        : null,
+                    closureReason:
+                        (selectedStatus == 'OTHER' ||
+                                selectedStatus == 'CLOSED_LOST') &&
+                            reasonController.text.trim().isNotEmpty
+                        ? reasonController.text.trim()
                         : null,
                   );
                   if (context.mounted) {

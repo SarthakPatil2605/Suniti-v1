@@ -129,17 +129,19 @@ class OpportunityService {
   /// PATCH /api/opportunities/:id/status
   /// Updates deal_status. When closing as CLOSED_WON and customer_type == NEW,
   /// a [tier] must be provided — backend enforces this.
-  /// Body: { deal_status: String, tier?: String, conclusion_notes?: String }
+  /// Body: { deal_status: String, tier?: String, conclusion_notes?: String, closure_reason?: String }
   Future<Opportunity> updateOpportunityStatus(
     int opportunityId, {
     required String dealStatus,
     String? tier,
     String? conclusionNotes,
+    String? closureReason,
   }) async {
     try {
       final body = <String, dynamic>{'deal_status': dealStatus};
       if (tier != null) body['tier'] = tier;
       if (conclusionNotes != null) body['conclusion_notes'] = conclusionNotes;
+      if (closureReason != null) body['closure_reason'] = closureReason;
 
       final response = await _apiClient.patch(
         ApiEndpoints.opportunityStatus(opportunityId),

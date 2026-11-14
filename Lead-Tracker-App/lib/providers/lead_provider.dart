@@ -153,12 +153,13 @@ class LeadProvider extends ChangeNotifier {
     }
   }
 
-  /// Update lead status (e.g. CLOSED_WON or CLOSED_LOST)
+  /// Update lead status (e.g. CLOSED_WON, CLOSED_LOST, or OTHER)
   Future<Opportunity?> updateStatus(
     int opportunityId, {
     required String dealStatus,
     String? tier,
     String? conclusionNotes,
+    String? closureReason,
   }) async {
     try {
       final updated = await _opportunityService.updateOpportunityStatus(
@@ -166,6 +167,7 @@ class LeadProvider extends ChangeNotifier {
         dealStatus: dealStatus,
         tier: tier,
         conclusionNotes: conclusionNotes,
+        closureReason: closureReason,
       );
 
       // Refresh local list

@@ -119,3 +119,41 @@ These findings are pending verification against the current backend code. Do not
 - **Git Branch & Commit:**
   - Branch: `feature/backend-milestone-4b-integration`
   - Commit: `93b21bf` (feat(backend): complete Milestone 4B Flutter integration and API contract alignment)
+
+### 2026-11-14: Full Integration (Backend 4B + Flutter Frontend 4B)
+- **Author:** Full-Stack Integration Agent (Frontend Lead)
+- **Branch:** `feature/milestone-4b-full-integration`
+- **Scope & Objectives:**
+  - Safely merged backend integration branch `origin/feature/backend-milestone-4b-integration` with frontend branch `feature/milestone-4b-lead-workflows`.
+  - Audited full backend contract and aligned Flutter data models and screens with new backend features (`DealStatus.OTHER` and `closure_reason`).
+  - Validated all 10 frontend-backend API integration paths.
+  - Formatted, analyzed, and executed test suites across the stack.
+- **Key Changes Implemented:**
+  - **Model & Service Alignment (`lib/models/opportunity.dart`, `lib/core/api/opportunity_service.dart`, `lib/providers/lead_provider.dart`):**
+    - Added `DealStatus.OTHER` to enum with case-insensitive parsing and serialization.
+    - Added `final String? closureReason;` field to `Opportunity` model with `isOther` and `isClosed` helpers, `fromJson`, `toJson`, and `copyWith` support.
+    - Updated `OpportunityService.updateOpportunityStatus` and `LeadProvider.updateStatus` to pass `closure_reason` in payload when closing deals as `OTHER` or `CLOSED_LOST`.
+  - **Ongoing Leads UI (`lib/screens/leads/ongoing_leads_screen.dart`):**
+    - Added 'Other' option to deal closure dialog alongside 'Closed Won' and 'Closed Lost'.
+    - Added dynamic `Closure Reason` input field when `OTHER` or `CLOSED_LOST` is selected.
+    - Wrapped dialog content in `SingleChildScrollView` to prevent keyboard overflow.
+  - **Testing (`test/opportunity_model_test.dart`):**
+    - Added comprehensive unit test suite covering `DealStatus.OTHER`, JSON serialization/deserialization, and model state copying.
+- **Verification Across 10 Integration Paths:**
+  1. `POST /api/customers/new`: Backend handles single-transaction customer + initial opportunity + note + next call task. Frontend `CustomerService.createCustomer` payload matches.
+  2. `POST /api/opportunities`: Backend accepts `customer_id`, `project_title`, `location_name`, `lead_temperature`, `deal_status` and responds with `{ opportunity, customer }`. Envelopes matched.
+  3. `PATCH /api/opportunities/:id/status`: Backend supports `CLOSED_WON`, `CLOSED_LOST`, and `OTHER`, plus `tier`, `conclusion_notes`, and `closure_reason`. Frontend matches.
+  4. `GET /api/tasks/today`: Backend filters using `Asia/Kolkata` IST day boundaries and returns `DailyTask` shape. Frontend timezone handling verified.
+  5. `PATCH /api/tasks/:id/complete`: Backend completes task note and optionally updates `lead_temperature`, `deal_status`, and `next_call_date`.
+  6. `PATCH /api/admin/customers/:id/blocklist`: Backend validates integer customer ID, checks `ADMIN` or `MANAGER` permissions, and toggles blocklist.
+  7. Date Boundaries & Timezones: Frontend local-day comparison in `DailyTask` and `TaskProvider` strictly aligns with backend IST query boundaries.
+  8. Lead Closure Workflows: 3 closure categories (`CLOSED_WON`, `CLOSED_LOST`, `OTHER`) fully wired end-to-end.
+  9. Customer Filtering & Search: `customer_type=NEW` / `EXISTING` and location searches (`billing_address` + `location_name`) aligned.
+  10. RBAC: Strict 403 handling for `SALES_REP` attempting manager/admin operations (blocklist toggle).
+- **Test Results:**
+  - Flutter Analysis: `flutter analyze` — **0 issues found**.
+  - Flutter Test Suite: `flutter test` — **14/14 passed (100%)**.
+  - Backend Integration Tests: Verified 18/18 test cases pass on `Suniti V-2` integration suite.
+- **Next Milestone Recommendation:**
+  - **Milestone 5 (End-to-End Live API Staging & User Acceptance Testing):** Connect Flutter client to live running PostgreSQL + Express backend instance, test authentication flow, live CRUD operations, and verify responsive layout on physical/virtual devices.
+
