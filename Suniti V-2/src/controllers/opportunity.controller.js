@@ -1,6 +1,6 @@
 import prisma from '../config/prisma.js';
 
-const VALID_DEAL_STATUSES = ['PIPELINE', 'CLOSED_WON', 'CLOSED_LOST'];
+const VALID_DEAL_STATUSES = ['PIPELINE', 'CLOSED_WON', 'CLOSED_LOST', 'OTHER'];
 const VALID_PROJECT_PHASES = ['TALKING', 'PROCESSING', 'DEAL_CLOSED'];
 const VALID_TEMPERATURES = ['HOT', 'WARM', 'COLD'];
 const VALID_TIERS = ['PREMIUM', 'LOYAL', 'INTERIOR_DESIGNER'];
@@ -27,6 +27,7 @@ export async function createOpportunity(req, res, next) {
       project_title,
       location_name,
       lead_temperature,
+      deal_status,
       employee_id,
       conclusion_notes,
       next_call_date,
@@ -91,6 +92,17 @@ export async function createOpportunity(req, res, next) {
       });
     }
 
+    const assignedDealStatus = deal_status
+      ? deal_status.toUpperCase()
+      : 'PIPELINE';
+
+    if (!VALID_DEAL_STATUSES.includes(assignedDealStatus)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: `Invalid deal_status "${deal_status}". Allowed: ${VALID_DEAL_STATUSES.join(', ')}`,
+      });
+    }
+
     // Schedule next call (Default: 30 days from creation if blank)
     let callDate;
     if (next_call_date && !isNaN(new Date(next_call_date).getTime())) {
@@ -110,7 +122,7 @@ export async function createOpportunity(req, res, next) {
           project_title: project_title.trim(),
           location_name: location_name ? location_name.trim() : null,
           lead_temperature: assignedTemp,
-          deal_status: 'PIPELINE',
+          deal_status: assignedDealStatus,
           project_phase: 'TALKING', // Default lifecycle stage
           is_completed: false,
         },
@@ -146,6 +158,7 @@ export async function createOpportunity(req, res, next) {
       status: 'success',
       message: 'Opportunity successfully created.',
       opportunity: result,
+      data: result,
     });
   } catch (error) {
     return next(error);
@@ -164,19 +177,68 @@ export async function createOpportunity(req, res, next) {
  *     * Require/assign a valid customer tier ('PREMIUM', 'LOYAL', 'INTERIOR_DESIGNER').
  *     * Automatically transition project_phase to 'DEAL_CLOSED'.
  *     * Mark is_completed = true, completed_at = now, completed_by = req.user.employee_id.
- * - When deal_status is updated to 'CLOSED_LOST':
- *     * Mark project_phase = 'DEAL_CLOSED', is_completed = true.
+ * - When deal_status is updated to 'CLOSED_LOST' or 'OTHER':
+ *     * Mark project_phase = 'DEAL_CLOSED', is_completed = true, completed_at = now.
+ * - If conclusion_notes is provided, it is atomically persisted into the lead_notes table.
  */
 export async function updateOpportunityStatus(req, res, next) {
   try {
     const opportunityId = parseIntegerId(req.params.id);
-    const { deal_status, project_phase, lead_temperature, tier } = req.body;
+    const {
+      deal_status,
+      project_phase,
+      lead_temperature,
+      tier,
+      conclusion_notes,
+      closure_reason,
+    } = req.body;
 
     if (!opportunityId) {
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Invalid opportunity ID. Must be a positive integer.',
       });
+    }
+
+    // Pre-validate status and lifecycle fields upfront before database query
+    if (lead_temperature) {
+      const upperTemp = lead_temperature.toUpperCase();
+      if (!VALID_TEMPERATURES.includes(upperTemp)) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: `Invalid lead_temperature. Allowed: ${VALID_TEMPERATURES.join(', ')}`,
+        });
+      }
+    }
+
+    if (project_phase) {
+      const upperPhase = project_phase.toUpperCase();
+      if (!VALID_PROJECT_PHASES.includes(upperPhase)) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: `Invalid project_phase "${project_phase}". Allowed lifecycle stages: ${VALID_PROJECT_PHASES.join(', ')}`,
+        });
+      }
+    }
+
+    if (deal_status) {
+      const upperStatusCheck = deal_status.toUpperCase();
+      if (!VALID_DEAL_STATUSES.includes(upperStatusCheck)) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: `Invalid deal_status "${deal_status}". Allowed: ${VALID_DEAL_STATUSES.join(', ')}`,
+        });
+      }
+    }
+
+    if (tier) {
+      const upperTierCheck = tier.toUpperCase();
+      if (!VALID_TIERS.includes(upperTierCheck)) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: `Invalid tier "${tier}". Closing a won deal requires one of: [${VALID_TIERS.join(', ')}].`,
+        });
+      }
     }
 
     // 1. Fetch current opportunity and parent customer
@@ -234,8 +296,9 @@ export async function updateOpportunityStatus(req, res, next) {
     }
 
     // 4. Validate deal_status update if provided (Rule 2: Deal Closure Graduation)
+    let upperStatus = null;
     if (deal_status) {
-      const upperStatus = deal_status.toUpperCase();
+      upperStatus = deal_status.toUpperCase();
       if (!VALID_DEAL_STATUSES.includes(upperStatus)) {
         return res.status(400).json({
           error: 'Bad Request',
@@ -264,34 +327,36 @@ export async function updateOpportunityStatus(req, res, next) {
           }
           assignedTier = upperTier;
         } else if (currentCustomer.tier) {
-          // Keep existing valid customer tier
           assignedTier = currentCustomer.tier;
         } else {
-          // If customer has no tier assigned yet and none passed, default to LOYAL
           assignedTier = 'LOYAL';
         }
 
-        // Rule 2: Graduate parent customer type from 'NEW' to 'EXISTING' with assigned tier
         customerUpdateData = {
           customer_type: 'EXISTING',
           tier: assignedTier,
         };
       }
 
-      // Handle CLOSED_LOST
-      if (upperStatus === 'CLOSED_LOST') {
+      // Handle CLOSED_LOST or OTHER
+      if (upperStatus === 'CLOSED_LOST' || upperStatus === 'OTHER') {
         oppUpdateData.project_phase = 'DEAL_CLOSED';
         oppUpdateData.is_completed = true;
         oppUpdateData.completed_at = new Date();
         oppUpdateData.completed_by = req.user.employee_id;
+
+        if (closure_reason && typeof closure_reason === 'string') {
+          oppUpdateData.closure_reason = closure_reason.trim();
+        }
       }
     }
 
-    // Check if there is anything to update
-    if (Object.keys(oppUpdateData).length === 0 && !customerUpdateData) {
+    // Check if there is anything to update or notes to log
+    const notesToSave = conclusion_notes || req.body.notes;
+    if (Object.keys(oppUpdateData).length === 0 && !customerUpdateData && !notesToSave) {
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'No valid update fields provided (deal_status, project_phase, lead_temperature, tier).',
+        message: 'No valid update fields provided (deal_status, project_phase, lead_temperature, tier, conclusion_notes).',
       });
     }
 
@@ -306,19 +371,37 @@ export async function updateOpportunityStatus(req, res, next) {
         });
       }
 
-      const updatedOpportunity = await tx.opportunity.update({
-        where: { opportunity_id: opportunityId },
-        data: oppUpdateData,
-        include: {
-          customer: true,
-          assigned_employee: {
-            select: { employee_id: true, name: true, email: true, role: true },
+      let updatedOpportunity = opportunity;
+      if (Object.keys(oppUpdateData).length > 0) {
+        updatedOpportunity = await tx.opportunity.update({
+          where: { opportunity_id: opportunityId },
+          data: oppUpdateData,
+          include: {
+            customer: true,
+            assigned_employee: {
+              select: { employee_id: true, name: true, email: true, role: true },
+            },
+            completed_by_employee: {
+              select: { employee_id: true, name: true, email: true },
+            },
           },
-          completed_by_employee: {
-            select: { employee_id: true, name: true, email: true },
+        });
+      }
+
+      // If conclusion_notes provided, persist note record atomically
+      if (notesToSave && typeof notesToSave === 'string' && notesToSave.trim()) {
+        const statusLabel = upperStatus || opportunity.deal_status;
+        await tx.leadNote.create({
+          data: {
+            opportunity_id: opportunityId,
+            employee_id: req.user.employee_id,
+            conclusion_notes: `Status updated to ${statusLabel}. Notes: ${notesToSave.trim()}`,
+            is_completed: true,
+            completed_at: new Date(),
+            completed_by: req.user.employee_id,
           },
-        },
-      });
+        });
+      }
 
       return {
         opportunity: updatedOpportunity,
@@ -332,8 +415,11 @@ export async function updateOpportunityStatus(req, res, next) {
       status: 'success',
       message: isGraduated
         ? `Deal CLOSED_WON! Parent customer "${updateResult.customer.name}" graduated to EXISTING with tier "${updateResult.customer.tier}".`
-        : 'Opportunity updated successfully.',
-      data: updateResult,
+        : `Opportunity deal status updated to ${upperStatus || 'updated'}.`,
+      opportunity: updateResult.opportunity,
+      customer: updateResult.customer,
+      customer_graduated: isGraduated,
+      data: updateResult.opportunity,
     });
   } catch (error) {
     return next(error);
@@ -415,6 +501,7 @@ export async function getOpportunities(req, res, next) {
       status: 'success',
       count: opportunities.length,
       opportunities,
+      data: opportunities,
     });
   } catch (error) {
     return next(error);
@@ -470,6 +557,7 @@ export async function getOpportunityById(req, res, next) {
     return res.status(200).json({
       status: 'success',
       opportunity,
+      data: opportunity,
     });
   } catch (error) {
     return next(error);
